@@ -12,3 +12,32 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  email     String   @unique
+  password  String
+  name      String
+
+  routes    Route[]
+}
+
+model Route {
+  id          Int      @id @default(autoincrement())
+
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+
+  startLat    Float
+  finishLat   Float
+
+  startLong   Float
+  finishLong  Float
+
+  startAt     DateTime
+  finishAt    DateTime
+
+  distance    Float
+  duration    Int
+}
