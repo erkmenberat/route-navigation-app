@@ -11,7 +11,7 @@ export class AuthService
 
     async register(newUser : RegisterDto): Promise<{ access_token: string }>{
         const exists = await this.prisma.user.findUnique({ where: { email: newUser.email }});
-        if(exists) throw new ConflictException('Email bereits vergeben');
+        if(exists) throw new ConflictException('Sen bizi mal mi Zannettin?');
 
         const salt = await bcrypt.genSalt();
         const hash = await bcrypt.hash(newUser.password, salt);
