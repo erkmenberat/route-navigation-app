@@ -2,31 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-type User = {
-    Name : string, 
-    Email: string, 
-    Password : string;
-};
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService 
 {
     constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
-    async register(newUser : User): Promise<{ access_token: string }>{
+    async register(newUser : RegisterDto): Promise<{ access_token: string }>{
         const salt = await bcrypt.genSalt();
-        const hash = await bcrypt.hash(newUser.Password, salt);
+        const hash = await bcrypt.hash(newUser.password, salt);
 
         const user = await this.prisma.user.create({
             data: {
-                name: newUser.Name, 
-                email: newUser.Email, 
+                name: newUser.name, 
+                email: newUser.email, 
                 password: hash, 
             }
         });
 
-        const payload = { username: newUser.Name };
+        const payload = { username: newUser.name };
         return{
             access_token: await this.jwt.signAsync(payload),
         }
