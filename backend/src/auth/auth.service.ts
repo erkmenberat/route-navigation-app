@@ -1,8 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService 
@@ -30,5 +31,16 @@ export class AuthService
         }
     }
 
+    async login( User: LoginDto ): Promise<{ access_token: string }> {
+        const exists = await this.prisma.user.findUnique({ where: { email: User.email }});
+        if(!exists) throw new ConflictException('You have to Create an Account first.');
     
+        const isMatch = await bcrypt.compare(User.password, exists.password);
+        if (!isMatch) throw new UnauthorizedException('Wrong Password');
+
+        const payload = { sub: exists.id, username: exists.name };
+        return {
+            access_token: await this.jwt.signAsync(payload),
+        };
+  }
 }
