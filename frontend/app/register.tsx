@@ -1,6 +1,8 @@
 import { api } from '@/services/api';
+import { getAuthErrorMessage } from '@/services/auth-error';
 import { useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -12,8 +14,15 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [statusType, setStatusType] = useState<'error' | 'success' | 'info'>('info');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function register() {
+    setIsSubmitting(true);
+    setStatusType('info');
+    setStatusMessage('Sending register request to backend...');
+
     try {
       const response = await api.post('/auth/register', {
         name,
@@ -22,8 +31,16 @@ export default function RegisterScreen() {
       });
 
       console.log(response.data);
+      setStatusType('success');
+      setStatusMessage('Registration successful. Backend and database are reachable.');
     } catch (error) {
+      const message = getAuthErrorMessage(error);
+      setStatusType('error');
+      setStatusMessage(message);
+      Alert.alert('Register issue', message);
       console.log(error);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -58,8 +75,12 @@ export default function RegisterScreen() {
       />
 
       <Pressable style={styles.button} onPress={register}>
-        <Text style={styles.buttonText}>Registrieren</Text>
+        <Text style={styles.buttonText}>{isSubmitting ? 'Bitte warten...' : 'Registrieren'}</Text>
       </Pressable>
+
+      {statusMessage ? (
+        <Text style={[styles.status, styles[statusType]]}>{statusMessage}</Text>
+      ) : null}
     </View>
   );
 }
@@ -97,5 +118,24 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  status: {
+    borderRadius: 8,
+    marginTop: 12,
+    padding: 12,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  info: {
+    backgroundColor: '#1e293b',
+    color: '#bfdbfe',
+  },
+  success: {
+    backgroundColor: '#064e3b',
+    color: '#bbf7d0',
+  },
+  error: {
+    backgroundColor: '#450a0a',
+    color: '#fecaca',
   },
 });
