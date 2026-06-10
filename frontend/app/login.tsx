@@ -35,7 +35,7 @@ export default function LoginScreen() {
       setStatusType('success');
       setStatusMessage('Login successful. Backend and database are reachable.');
 
-      router.replace('/');
+      router.replace('/home');
     } catch (error) {
       const message = getAuthErrorMessage(error);
       setStatusType('error');
