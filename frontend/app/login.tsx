@@ -17,7 +17,7 @@ export default function LoginScreen() {
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState<'error' | 'success' | 'info'>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   async function login() {
     setIsSubmitting(true);
     setStatusType('info');
