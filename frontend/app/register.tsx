@@ -1,5 +1,7 @@
 import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
+import { saveAuthToken } from '@/services/auth-token';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -31,8 +33,11 @@ export default function RegisterScreen() {
       });
 
       console.log(response.data);
+      await saveAuthToken(response.data.access_token);
       setStatusType('success');
       setStatusMessage('Registration successful. Backend and database are reachable.');
+
+      router.replace('/');
     } catch (error) {
       const message = getAuthErrorMessage(error);
       setStatusType('error');

@@ -1,13 +1,42 @@
 import { Image } from 'expo-image';
+import { Link, router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { api } from '@/services/api';
+import { getAuthToken } from '@/services/auth-token';
 
 export default function HomeScreen() {
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      const token = await getAuthToken();
+
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
+      try {
+        await api.get('/auth/me');
+        setIsCheckingAuth(false);
+      } catch {
+        router.replace('/login');
+      }
+    }
+
+    checkAuth();
+  }, []);
+
+  if (isCheckingAuth) {
+    return null;
+  }
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}

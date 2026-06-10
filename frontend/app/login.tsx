@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
+import { saveAuthToken } from '@/services/auth-token';
 import { useState } from 'react';
 import {
   Alert,
@@ -17,7 +18,7 @@ export default function LoginScreen() {
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState<'error' | 'success' | 'info'>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   async function login() {
     setIsSubmitting(true);
     setStatusType('info');
@@ -30,8 +31,11 @@ export default function LoginScreen() {
       });
 
       console.log(response.data);
+      await saveAuthToken(response.data.access_token);
       setStatusType('success');
       setStatusMessage('Login successful. Backend and database are reachable.');
+
+      router.replace('/');
     } catch (error) {
       const message = getAuthErrorMessage(error);
       setStatusType('error');
