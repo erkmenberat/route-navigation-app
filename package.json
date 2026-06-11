@@ -13,5 +13,8 @@
     "prisma:generate": "pnpm --filter backend prisma:generate",
     "prisma:validate": "pnpm --filter backend prisma:validate"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "pnpm": {
+    "ignoredBuiltDependencies": ["prisma"]
+  }
 }
