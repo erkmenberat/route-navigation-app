@@ -1,7 +1,17 @@
 {
-  "dependencies": {
-    "dotenv": "^17.4.2",
-    "expo": "^56.0.9",
-    "expo-secure-store": "~56.0.4"
-  }
+  "name": "route-navigation-app",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "frontend:start": "pnpm --filter frontend start",
+    "frontend:android": "pnpm --filter frontend android",
+    "frontend:lint": "pnpm --filter frontend lint",
+    "backend:start": "pnpm --filter backend start",
+    "backend:start:dev": "pnpm --filter backend start:dev",
+    "backend:build": "pnpm --filter backend build",
+    "backend:test": "pnpm --filter backend test",
+    "prisma:generate": "pnpm --filter backend prisma:generate",
+    "prisma:validate": "pnpm --filter backend prisma:validate"
+  },
+  "devDependencies": {}
 }

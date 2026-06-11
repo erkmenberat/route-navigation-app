@@ -1,5 +1,39 @@
-.env
-claude.md
+# dependencies and package-manager caches
 node_modules/
 .pnpm-store/
+
+# prevent mixing npm/yarn lockfiles into this pnpm workspace
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+
+# environment and local config
+.env
+.env.*
+!.env.example
+*.local
+claude.md
+
+# Expo and native build output
 .expo/
+dist/
+web-build/
+expo-env.d.ts
+android/build/
+android/.gradle/
+frontend/android/build/
+frontend/android/.gradle/
+frontend/ios/build/
+
+# backend build/test/runtime output
+backend/dist/
+backend/build/
+backend/coverage/
+backend/src/generated/prisma/
+*.log
+*.out
+*.err
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
