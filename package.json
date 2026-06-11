@@ -1,1 +1,7 @@
-{"dependencies":{"dotenv":"^17.4.2"}}
+{
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "expo": "^56.0.9",
+    "expo-secure-store": "~56.0.4"
+  }
+}

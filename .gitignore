@@ -1,2 +1,5 @@
 .env
 claude.md
+node_modules/
+.pnpm-store/
+.expo/
