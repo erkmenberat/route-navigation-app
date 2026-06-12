@@ -37,3 +37,4 @@ backend/src/generated/prisma/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+roadmap_navigation_project.md
