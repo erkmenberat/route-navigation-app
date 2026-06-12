@@ -23,9 +23,9 @@ export class AuthService
         const salt = await bcrypt.genSalt();
         const hash = await bcrypt.hash(newUser.password, salt);
 
-        await this.createUser(newUser, hash);
+        const user = await this.createUser(newUser, hash);
 
-        const payload = { username: newUser.name };
+        const payload = { sub: user.id, username: user.name };
         return{
             access_token: await this.jwt.signAsync(payload),
         }
