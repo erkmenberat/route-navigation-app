@@ -33,10 +33,10 @@ export class AuthService
 
     async login( User: LoginDto ): Promise<{ access_token: string }> {
         const exists = await this.findUserByEmail(User.email);
-        if(!exists) throw new ConflictException('You have to Create an Account first.');
+        if(!exists) throw new UnauthorizedException('Invalid credentials');
     
         const isMatch = await bcrypt.compare(User.password, exists.password);
-        if (!isMatch) throw new UnauthorizedException('Wrong Password');
+        if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
         const payload = { sub: exists.id, username: exists.name };
         return {
