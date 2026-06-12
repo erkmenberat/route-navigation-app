@@ -85,14 +85,17 @@ export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof User
 export const RouteScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  origin: 'origin',
+  destination: 'destination',
   startLat: 'startLat',
-  finishLat: 'finishLat',
   startLong: 'startLong',
+  finishLat: 'finishLat',
   finishLong: 'finishLong',
   startAt: 'startAt',
   finishAt: 'finishAt',
   distance: 'distance',
-  duration: 'duration'
+  duration: 'duration',
+  createdAt: 'createdAt'
 } as const
 
 export type RouteScalarFieldEnum = (typeof RouteScalarFieldEnum)[keyof typeof RouteScalarFieldEnum]
@@ -112,4 +115,12 @@ export const QueryMode = {
 } as const
 
 export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+export const NullsOrder = {
+  first: 'first',
+  last: 'last'
+} as const
+
+export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
 

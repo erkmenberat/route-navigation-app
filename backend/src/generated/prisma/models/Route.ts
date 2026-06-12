@@ -30,8 +30,8 @@ export type RouteAvgAggregateOutputType = {
   id: number | null
   userId: number | null
   startLat: number | null
-  finishLat: number | null
   startLong: number | null
+  finishLat: number | null
   finishLong: number | null
   distance: number | null
   duration: number | null
@@ -41,8 +41,8 @@ export type RouteSumAggregateOutputType = {
   id: number | null
   userId: number | null
   startLat: number | null
-  finishLat: number | null
   startLong: number | null
+  finishLat: number | null
   finishLong: number | null
   distance: number | null
   duration: number | null
@@ -51,40 +51,49 @@ export type RouteSumAggregateOutputType = {
 export type RouteMinAggregateOutputType = {
   id: number | null
   userId: number | null
+  origin: string | null
+  destination: string | null
   startLat: number | null
-  finishLat: number | null
   startLong: number | null
+  finishLat: number | null
   finishLong: number | null
   startAt: Date | null
   finishAt: Date | null
   distance: number | null
   duration: number | null
+  createdAt: Date | null
 }
 
 export type RouteMaxAggregateOutputType = {
   id: number | null
   userId: number | null
+  origin: string | null
+  destination: string | null
   startLat: number | null
-  finishLat: number | null
   startLong: number | null
+  finishLat: number | null
   finishLong: number | null
   startAt: Date | null
   finishAt: Date | null
   distance: number | null
   duration: number | null
+  createdAt: Date | null
 }
 
 export type RouteCountAggregateOutputType = {
   id: number
   userId: number
+  origin: number
+  destination: number
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
   startAt: number
   finishAt: number
   distance: number
   duration: number
+  createdAt: number
   _all: number
 }
 
@@ -93,8 +102,8 @@ export type RouteAvgAggregateInputType = {
   id?: true
   userId?: true
   startLat?: true
-  finishLat?: true
   startLong?: true
+  finishLat?: true
   finishLong?: true
   distance?: true
   duration?: true
@@ -104,8 +113,8 @@ export type RouteSumAggregateInputType = {
   id?: true
   userId?: true
   startLat?: true
-  finishLat?: true
   startLong?: true
+  finishLat?: true
   finishLong?: true
   distance?: true
   duration?: true
@@ -114,40 +123,49 @@ export type RouteSumAggregateInputType = {
 export type RouteMinAggregateInputType = {
   id?: true
   userId?: true
+  origin?: true
+  destination?: true
   startLat?: true
-  finishLat?: true
   startLong?: true
+  finishLat?: true
   finishLong?: true
   startAt?: true
   finishAt?: true
   distance?: true
   duration?: true
+  createdAt?: true
 }
 
 export type RouteMaxAggregateInputType = {
   id?: true
   userId?: true
+  origin?: true
+  destination?: true
   startLat?: true
-  finishLat?: true
   startLong?: true
+  finishLat?: true
   finishLong?: true
   startAt?: true
   finishAt?: true
   distance?: true
   duration?: true
+  createdAt?: true
 }
 
 export type RouteCountAggregateInputType = {
   id?: true
   userId?: true
+  origin?: true
+  destination?: true
   startLat?: true
-  finishLat?: true
   startLong?: true
+  finishLat?: true
   finishLong?: true
   startAt?: true
   finishAt?: true
   distance?: true
   duration?: true
+  createdAt?: true
   _all?: true
 }
 
@@ -240,14 +258,17 @@ export type RouteGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
 export type RouteGroupByOutputType = {
   id: number
   userId: number
+  origin: string | null
+  destination: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date
-  finishAt: Date
+  startAt: Date | null
+  finishAt: Date | null
   distance: number
   duration: number
+  createdAt: Date
   _count: RouteCountAggregateOutputType | null
   _avg: RouteAvgAggregateOutputType | null
   _sum: RouteSumAggregateOutputType | null
@@ -276,28 +297,34 @@ export type RouteWhereInput = {
   NOT?: Prisma.RouteWhereInput | Prisma.RouteWhereInput[]
   id?: Prisma.IntFilter<"Route"> | number
   userId?: Prisma.IntFilter<"Route"> | number
+  origin?: Prisma.StringNullableFilter<"Route"> | string | null
+  destination?: Prisma.StringNullableFilter<"Route"> | string | null
   startLat?: Prisma.FloatFilter<"Route"> | number
-  finishLat?: Prisma.FloatFilter<"Route"> | number
   startLong?: Prisma.FloatFilter<"Route"> | number
+  finishLat?: Prisma.FloatFilter<"Route"> | number
   finishLong?: Prisma.FloatFilter<"Route"> | number
-  startAt?: Prisma.DateTimeFilter<"Route"> | Date | string
-  finishAt?: Prisma.DateTimeFilter<"Route"> | Date | string
+  startAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
+  finishAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
   distance?: Prisma.FloatFilter<"Route"> | number
   duration?: Prisma.IntFilter<"Route"> | number
+  createdAt?: Prisma.DateTimeFilter<"Route"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
 
 export type RouteOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  origin?: Prisma.SortOrderInput | Prisma.SortOrder
+  destination?: Prisma.SortOrderInput | Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
-  startAt?: Prisma.SortOrder
-  finishAt?: Prisma.SortOrder
+  startAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  finishAt?: Prisma.SortOrderInput | Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
 }
 
@@ -307,28 +334,34 @@ export type RouteWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.RouteWhereInput[]
   NOT?: Prisma.RouteWhereInput | Prisma.RouteWhereInput[]
   userId?: Prisma.IntFilter<"Route"> | number
+  origin?: Prisma.StringNullableFilter<"Route"> | string | null
+  destination?: Prisma.StringNullableFilter<"Route"> | string | null
   startLat?: Prisma.FloatFilter<"Route"> | number
-  finishLat?: Prisma.FloatFilter<"Route"> | number
   startLong?: Prisma.FloatFilter<"Route"> | number
+  finishLat?: Prisma.FloatFilter<"Route"> | number
   finishLong?: Prisma.FloatFilter<"Route"> | number
-  startAt?: Prisma.DateTimeFilter<"Route"> | Date | string
-  finishAt?: Prisma.DateTimeFilter<"Route"> | Date | string
+  startAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
+  finishAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
   distance?: Prisma.FloatFilter<"Route"> | number
   duration?: Prisma.IntFilter<"Route"> | number
+  createdAt?: Prisma.DateTimeFilter<"Route"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id">
 
 export type RouteOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  origin?: Prisma.SortOrderInput | Prisma.SortOrder
+  destination?: Prisma.SortOrderInput | Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
-  startAt?: Prisma.SortOrder
-  finishAt?: Prisma.SortOrder
+  startAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  finishAt?: Prisma.SortOrderInput | Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
   _count?: Prisma.RouteCountOrderByAggregateInput
   _avg?: Prisma.RouteAvgOrderByAggregateInput
   _max?: Prisma.RouteMaxOrderByAggregateInput
@@ -342,101 +375,125 @@ export type RouteScalarWhereWithAggregatesInput = {
   NOT?: Prisma.RouteScalarWhereWithAggregatesInput | Prisma.RouteScalarWhereWithAggregatesInput[]
   id?: Prisma.IntWithAggregatesFilter<"Route"> | number
   userId?: Prisma.IntWithAggregatesFilter<"Route"> | number
+  origin?: Prisma.StringNullableWithAggregatesFilter<"Route"> | string | null
+  destination?: Prisma.StringNullableWithAggregatesFilter<"Route"> | string | null
   startLat?: Prisma.FloatWithAggregatesFilter<"Route"> | number
-  finishLat?: Prisma.FloatWithAggregatesFilter<"Route"> | number
   startLong?: Prisma.FloatWithAggregatesFilter<"Route"> | number
+  finishLat?: Prisma.FloatWithAggregatesFilter<"Route"> | number
   finishLong?: Prisma.FloatWithAggregatesFilter<"Route"> | number
-  startAt?: Prisma.DateTimeWithAggregatesFilter<"Route"> | Date | string
-  finishAt?: Prisma.DateTimeWithAggregatesFilter<"Route"> | Date | string
+  startAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Route"> | Date | string | null
+  finishAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Route"> | Date | string | null
   distance?: Prisma.FloatWithAggregatesFilter<"Route"> | number
   duration?: Prisma.IntWithAggregatesFilter<"Route"> | number
+  createdAt?: Prisma.DateTimeWithAggregatesFilter<"Route"> | Date | string
 }
 
 export type RouteCreateInput = {
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutRoutesInput
 }
 
 export type RouteUncheckedCreateInput = {
   id?: number
   userId: number
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
 }
 
 export type RouteUpdateInput = {
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutRoutesNestedInput
 }
 
 export type RouteUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type RouteCreateManyInput = {
   id?: number
   userId: number
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
 }
 
 export type RouteUpdateManyMutationInput = {
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type RouteUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type RouteListRelationFilter = {
@@ -452,22 +509,25 @@ export type RouteOrderByRelationAggregateInput = {
 export type RouteCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  origin?: Prisma.SortOrder
+  destination?: Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
   startAt?: Prisma.SortOrder
   finishAt?: Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type RouteAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
@@ -476,35 +536,41 @@ export type RouteAvgOrderByAggregateInput = {
 export type RouteMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  origin?: Prisma.SortOrder
+  destination?: Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
   startAt?: Prisma.SortOrder
   finishAt?: Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type RouteMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  origin?: Prisma.SortOrder
+  destination?: Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
   startAt?: Prisma.SortOrder
   finishAt?: Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
+  createdAt?: Prisma.SortOrder
 }
 
 export type RouteSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   startLat?: Prisma.SortOrder
-  finishLat?: Prisma.SortOrder
   startLong?: Prisma.SortOrder
+  finishLat?: Prisma.SortOrder
   finishLong?: Prisma.SortOrder
   distance?: Prisma.SortOrder
   duration?: Prisma.SortOrder
@@ -552,6 +618,10 @@ export type RouteUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.RouteScalarWhereInput | Prisma.RouteScalarWhereInput[]
 }
 
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
+}
+
 export type FloatFieldUpdateOperationsInput = {
   set?: number
   increment?: number
@@ -560,27 +630,37 @@ export type FloatFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type NullableDateTimeFieldUpdateOperationsInput = {
+  set?: Date | string | null
+}
+
 export type RouteCreateWithoutUserInput = {
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
 }
 
 export type RouteUncheckedCreateWithoutUserInput = {
   id?: number
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
 }
 
 export type RouteCreateOrConnectWithoutUserInput = {
@@ -615,61 +695,76 @@ export type RouteScalarWhereInput = {
   NOT?: Prisma.RouteScalarWhereInput | Prisma.RouteScalarWhereInput[]
   id?: Prisma.IntFilter<"Route"> | number
   userId?: Prisma.IntFilter<"Route"> | number
+  origin?: Prisma.StringNullableFilter<"Route"> | string | null
+  destination?: Prisma.StringNullableFilter<"Route"> | string | null
   startLat?: Prisma.FloatFilter<"Route"> | number
-  finishLat?: Prisma.FloatFilter<"Route"> | number
   startLong?: Prisma.FloatFilter<"Route"> | number
+  finishLat?: Prisma.FloatFilter<"Route"> | number
   finishLong?: Prisma.FloatFilter<"Route"> | number
-  startAt?: Prisma.DateTimeFilter<"Route"> | Date | string
-  finishAt?: Prisma.DateTimeFilter<"Route"> | Date | string
+  startAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
+  finishAt?: Prisma.DateTimeNullableFilter<"Route"> | Date | string | null
   distance?: Prisma.FloatFilter<"Route"> | number
   duration?: Prisma.IntFilter<"Route"> | number
+  createdAt?: Prisma.DateTimeFilter<"Route"> | Date | string
 }
 
 export type RouteCreateManyUserInput = {
   id?: number
+  origin?: string | null
+  destination?: string | null
   startLat: number
-  finishLat: number
   startLong: number
+  finishLat: number
   finishLong: number
-  startAt: Date | string
-  finishAt: Date | string
+  startAt?: Date | string | null
+  finishAt?: Date | string | null
   distance: number
   duration: number
+  createdAt?: Date | string
 }
 
 export type RouteUpdateWithoutUserInput = {
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type RouteUncheckedUpdateWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type RouteUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
+  origin?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  destination?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startLat?: Prisma.FloatFieldUpdateOperationsInput | number
-  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   startLong?: Prisma.FloatFieldUpdateOperationsInput | number
+  finishLat?: Prisma.FloatFieldUpdateOperationsInput | number
   finishLong?: Prisma.FloatFieldUpdateOperationsInput | number
-  startAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  finishAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  startAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  finishAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   distance?: Prisma.FloatFieldUpdateOperationsInput | number
   duration?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
@@ -677,59 +772,71 @@ export type RouteUncheckedUpdateManyWithoutUserInput = {
 export type RouteSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  origin?: boolean
+  destination?: boolean
   startLat?: boolean
-  finishLat?: boolean
   startLong?: boolean
+  finishLat?: boolean
   finishLong?: boolean
   startAt?: boolean
   finishAt?: boolean
   distance?: boolean
   duration?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["route"]>
 
 export type RouteSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  origin?: boolean
+  destination?: boolean
   startLat?: boolean
-  finishLat?: boolean
   startLong?: boolean
+  finishLat?: boolean
   finishLong?: boolean
   startAt?: boolean
   finishAt?: boolean
   distance?: boolean
   duration?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["route"]>
 
 export type RouteSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
+  origin?: boolean
+  destination?: boolean
   startLat?: boolean
-  finishLat?: boolean
   startLong?: boolean
+  finishLat?: boolean
   finishLong?: boolean
   startAt?: boolean
   finishAt?: boolean
   distance?: boolean
   duration?: boolean
+  createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["route"]>
 
 export type RouteSelectScalar = {
   id?: boolean
   userId?: boolean
+  origin?: boolean
+  destination?: boolean
   startLat?: boolean
-  finishLat?: boolean
   startLong?: boolean
+  finishLat?: boolean
   finishLong?: boolean
   startAt?: boolean
   finishAt?: boolean
   distance?: boolean
   duration?: boolean
+  createdAt?: boolean
 }
 
-export type RouteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "startLat" | "finishLat" | "startLong" | "finishLong" | "startAt" | "finishAt" | "distance" | "duration", ExtArgs["result"]["route"]>
+export type RouteOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "origin" | "destination" | "startLat" | "startLong" | "finishLat" | "finishLong" | "startAt" | "finishAt" | "distance" | "duration" | "createdAt", ExtArgs["result"]["route"]>
 export type RouteInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -748,14 +855,17 @@ export type $RoutePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     userId: number
+    origin: string | null
+    destination: string | null
     startLat: number
-    finishLat: number
     startLong: number
+    finishLat: number
     finishLong: number
-    startAt: Date
-    finishAt: Date
+    startAt: Date | null
+    finishAt: Date | null
     distance: number
     duration: number
+    createdAt: Date
   }, ExtArgs["result"]["route"]>
   composites: {}
 }
@@ -1182,14 +1292,17 @@ export interface Prisma__RouteClient<T, Null = never, ExtArgs extends runtime.Ty
 export interface RouteFieldRefs {
   readonly id: Prisma.FieldRef<"Route", 'Int'>
   readonly userId: Prisma.FieldRef<"Route", 'Int'>
+  readonly origin: Prisma.FieldRef<"Route", 'String'>
+  readonly destination: Prisma.FieldRef<"Route", 'String'>
   readonly startLat: Prisma.FieldRef<"Route", 'Float'>
-  readonly finishLat: Prisma.FieldRef<"Route", 'Float'>
   readonly startLong: Prisma.FieldRef<"Route", 'Float'>
+  readonly finishLat: Prisma.FieldRef<"Route", 'Float'>
   readonly finishLong: Prisma.FieldRef<"Route", 'Float'>
   readonly startAt: Prisma.FieldRef<"Route", 'DateTime'>
   readonly finishAt: Prisma.FieldRef<"Route", 'DateTime'>
   readonly distance: Prisma.FieldRef<"Route", 'Float'>
   readonly duration: Prisma.FieldRef<"Route", 'Int'>
+  readonly createdAt: Prisma.FieldRef<"Route", 'DateTime'>
 }
     
 
