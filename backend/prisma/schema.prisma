@@ -29,15 +29,19 @@ model Route {
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
 
-  startLat    Float
-  finishLat   Float
+  origin      String?
+  destination String?
 
+  startLat    Float
   startLong   Float
+  finishLat   Float
   finishLong  Float
 
-  startAt     DateTime
-  finishAt    DateTime
+  startAt     DateTime?
+  finishAt    DateTime?
 
   distance    Float
   duration    Int
+
+  createdAt   DateTime @default(now())
 }
