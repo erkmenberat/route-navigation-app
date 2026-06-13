@@ -1,4 +1,4 @@
-import Mapbox, { Camera, CircleLayer, MapView, ShapeSource } from '@rnmapbox/maps';
+import Mapbox, { Camera, CircleLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,6 +29,15 @@ type GeocodingResponse = {
   features?: GeocodingFeature[];
 };
 
+type DirectionsResponse = {
+  routes?: {
+    geometry?: {
+      coordinates?: Coordinate[];
+      type?: 'LineString';
+    };
+  }[];
+};
+
 if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
 }
@@ -47,6 +56,9 @@ export default function HomeScreen() {
   const [selectedDestination, setSelectedDestination] = useState<GeocodingFeature | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState('');
 
   const showTemporaryLocationStatus = useCallback((message: string) => {
     if (locationStatusTimeoutRef.current) {
@@ -210,6 +222,69 @@ export default function HomeScreen() {
     };
   }, [searchQuery, selectedDestination?.place_name]);
 
+  useEffect(() => {
+    if (!mapboxToken || !selectedDestination || !currentCoordinate) {
+      setRouteCoordinates([]);
+      setIsRouteLoading(false);
+      setRouteError('');
+      return;
+    }
+
+    const abortController = new AbortController();
+    const accessToken = mapboxToken;
+    const originCoordinate = currentCoordinate;
+    const destinationCoordinate = selectedDestination.center;
+
+    async function fetchRoute() {
+      setIsRouteLoading(true);
+      setRouteError('');
+
+      try {
+        const [originLon, originLat] = originCoordinate;
+        const [destinationLon, destinationLat] = destinationCoordinate;
+        const params = new URLSearchParams({
+          access_token: accessToken,
+          geometries: 'geojson',
+          overview: 'full',
+        });
+
+        const response = await fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/driving/${originLon},${originLat};${destinationLon},${destinationLat}?${params.toString()}`,
+          { signal: abortController.signal }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Mapbox directions failed with status ${response.status}`);
+        }
+
+        const data = (await response.json()) as DirectionsResponse;
+        const coordinates = data.routes?.[0]?.geometry?.coordinates;
+
+        if (!coordinates?.length) {
+          throw new Error('Mapbox directions returned no route geometry');
+        }
+
+        setRouteCoordinates(coordinates);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+
+        console.error(error);
+        setRouteCoordinates([]);
+        setRouteError('Route konnte nicht berechnet werden.');
+      } finally {
+        setIsRouteLoading(false);
+      }
+    }
+
+    fetchRoute();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [currentCoordinate, selectedDestination]);
+
   function selectDestination(destination: GeocodingFeature) {
     setSelectedDestination(destination);
     setCameraCenter(destination.center);
@@ -217,6 +292,7 @@ export default function HomeScreen() {
     setSearchQuery(destination.place_name);
     setSearchResults([]);
     setSearchError('');
+    setRouteError('');
   }
 
   function centerCurrentLocation() {
@@ -259,6 +335,31 @@ export default function HomeScreen() {
           pitch={70}
           zoomLevel={currentCoordinate || selectedDestination ? 15 : 12.1}
         />
+
+        {routeCoordinates.length > 0 ? (
+          <ShapeSource
+            id="route-source"
+            shape={{
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: routeCoordinates,
+              },
+              properties: {},
+            }}
+          >
+            <LineLayer
+              id="route-line"
+              style={{
+                lineCap: 'round',
+                lineColor: '#22c55e',
+                lineJoin: 'round',
+                lineOpacity: 0.9,
+                lineWidth: 5,
+              }}
+            />
+          </ShapeSource>
+        ) : null}
 
         {currentCoordinate ? (
           <ShapeSource
@@ -320,6 +421,8 @@ export default function HomeScreen() {
           onChangeText={(text) => {
             setSearchQuery(text);
             setSelectedDestination(null);
+            setRouteCoordinates([]);
+            setRouteError('');
           }}
         />
 
@@ -331,6 +434,8 @@ export default function HomeScreen() {
         ) : null}
 
         {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
+        {isRouteLoading ? <Text style={styles.searchStateText}>Route wird berechnet...</Text> : null}
+        {routeError ? <Text style={styles.searchError}>{routeError}</Text> : null}
 
         {searchResults.length > 0 ? (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.resultsList}>
