@@ -31,6 +31,8 @@ type GeocodingResponse = {
 
 type DirectionsResponse = {
   routes?: {
+    distance?: number;
+    duration?: number;
     geometry?: {
       coordinates?: Coordinate[];
       type?: 'LineString';
@@ -57,6 +59,10 @@ export default function HomeScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+  const [routeSummary, setRouteSummary] = useState<{
+    distanceKm: number;
+    durationMin: number;
+  } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
 
@@ -225,6 +231,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!mapboxToken || !selectedDestination || !currentCoordinate) {
       setRouteCoordinates([]);
+      setRouteSummary(null);
       setIsRouteLoading(false);
       setRouteError('');
       return;
@@ -258,13 +265,18 @@ export default function HomeScreen() {
         }
 
         const data = (await response.json()) as DirectionsResponse;
-        const coordinates = data.routes?.[0]?.geometry?.coordinates;
+        const route = data.routes?.[0];
+        const coordinates = route?.geometry?.coordinates;
 
-        if (!coordinates?.length) {
+        if (!route || !coordinates?.length) {
           throw new Error('Mapbox directions returned no route geometry');
         }
 
         setRouteCoordinates(coordinates);
+        setRouteSummary({
+          distanceKm: (route.distance ?? 0) / 1000,
+          durationMin: (route.duration ?? 0) / 60,
+        });
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           return;
@@ -272,6 +284,7 @@ export default function HomeScreen() {
 
         console.error(error);
         setRouteCoordinates([]);
+        setRouteSummary(null);
         setRouteError('Route konnte nicht berechnet werden.');
       } finally {
         setIsRouteLoading(false);
@@ -293,6 +306,7 @@ export default function HomeScreen() {
     setSearchResults([]);
     setSearchError('');
     setRouteError('');
+    setRouteSummary(null);
   }
 
   function centerCurrentLocation() {
@@ -422,6 +436,7 @@ export default function HomeScreen() {
             setSearchQuery(text);
             setSelectedDestination(null);
             setRouteCoordinates([]);
+            setRouteSummary(null);
             setRouteError('');
           }}
         />
@@ -470,6 +485,17 @@ export default function HomeScreen() {
       {isLocationStatusVisible ? (
         <View style={[styles.locationStatus, { top: insets.top + 76 }]}>
           <Text style={styles.locationStatusText}>{locationStatus}</Text>
+        </View>
+      ) : null}
+
+      {routeSummary ? (
+        <View style={[styles.routeInfoCard, { bottom: insets.bottom + 24 }]}>
+          <Text style={styles.routeInfoLabel}>Route</Text>
+          <View style={styles.routeInfoRow}>
+            <Text style={styles.routeInfoValue}>{routeSummary.distanceKm.toFixed(1)} km</Text>
+            <Text style={styles.routeInfoSeparator}>|</Text>
+            <Text style={styles.routeInfoValue}>{Math.round(routeSummary.durationMin)} min</Text>
+          </View>
         </View>
       ) : null}
     </View>
@@ -576,6 +602,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  routeInfoCard: {
+    backgroundColor: 'rgba(17, 24, 39, 0.92)',
+    borderRadius: 8,
+    elevation: 6,
+    left: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: 'absolute',
+    right: 88,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    zIndex: 2,
+  },
+  routeInfoLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  routeInfoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  routeInfoValue: {
+    color: '#f9fafb',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  routeInfoSeparator: {
+    color: '#6b7280',
+    fontSize: 18,
   },
   missingTokenContainer: {
     flex: 1,
