@@ -12,3 +12,5 @@ allowBuilds:
   unrs-resolver: true
 
 nodeLinker: hoisted
+packageImportMethod: copy
+virtualStoreDir: node_modules/.pnpm

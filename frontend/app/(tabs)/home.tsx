@@ -1,7 +1,24 @@
-import { Camera, MapView } from '@rnmapbox/maps';
-import { Platform, StyleSheet } from 'react-native';
+import Mapbox, { Camera, MapView } from '@rnmapbox/maps';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+
+const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+
+if (mapboxToken) {
+  Mapbox.setAccessToken(mapboxToken);
+}
 
 export default function HomeScreen() {
+  if (!mapboxToken) {
+    return (
+      <View style={styles.missingTokenContainer}>
+        <Text style={styles.missingTokenTitle}>Mapbox token missing</Text>
+        <Text style={styles.missingTokenText}>
+          Set EXPO_PUBLIC_MAPBOX_TOKEN in the root .env file and restart Expo.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <MapView
       attributionPosition={Platform.OS === 'android' ? { bottom: 40, right: 10 } : undefined}
@@ -27,5 +44,24 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
     width: '100%',
+  },
+  missingTokenContainer: {
+    flex: 1,
+    backgroundColor: '#121212',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  missingTokenTitle: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  missingTokenText: {
+    color: '#d1d5db',
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });
