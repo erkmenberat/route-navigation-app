@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
@@ -18,6 +22,12 @@ describe('AuthService', () => {
     user: {
       create: jest.fn(),
       findUnique: jest.fn(),
+    },
+    refreshToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
   };
 
@@ -39,113 +49,228 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  it('registers a new user with a hashed password and returns a JWT', async () => {
-    prismaMock.user.findUnique.mockResolvedValue(null);
-    prismaMock.user.create.mockResolvedValue({
-      id: 7,
-      email: 'test@example.com',
-      name: 'Test User',
-      password: 'hashed-password',
-    });
-    jwtMock.signAsync.mockResolvedValue('signed-token');
-    jest.mocked(bcrypt.genSalt).mockResolvedValue('salt' as never);
-    jest.mocked(bcrypt.hash).mockResolvedValue('hashed-password' as never);
+  describe('register', () => {
+    it('creates a new user and returns an access + refresh token pair', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.create.mockResolvedValue({
+        id: 1,
+        email: 'alice@example.com',
+        name: 'Alice',
+        password: 'hashed',
+      });
+      prismaMock.refreshToken.create.mockResolvedValue({});
+      jest.mocked(bcrypt.genSalt).mockResolvedValue('salt' as never);
+      jest.mocked(bcrypt.hash).mockResolvedValue('hashed' as never);
+      jwtMock.signAsync.mockResolvedValue('access-token');
 
-    const result = await service.register({
-      email: 'test@example.com',
-      name: 'Test User',
-      password: 'plain-password',
+      const result = await service.register({
+        email: 'alice@example.com',
+        name: 'Alice',
+        password: 'plaintext',
+      });
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'alice@example.com' },
+      });
+      expect(bcrypt.genSalt).toHaveBeenCalled();
+      expect(bcrypt.hash).toHaveBeenCalledWith('plaintext', 'salt');
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: { email: 'alice@example.com', name: 'Alice', password: 'hashed' },
+      });
+      expect(jwtMock.signAsync).toHaveBeenCalledWith({
+        sub: 1,
+        username: 'Alice',
+      });
+      expect(result).toMatchObject({ access_token: 'access-token' });
+      expect(typeof result.refresh_token).toBe('string');
+      expect(result.refresh_token.length).toBeGreaterThan(0);
     });
 
-    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
-      where: { email: 'test@example.com' },
+    it('throws ConflictException when the email is already registered', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'alice@example.com',
+      });
+
+      await expect(
+        service.register({
+          email: 'alice@example.com',
+          name: 'Alice',
+          password: 'pw',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
-    expect(prismaMock.user.create).toHaveBeenCalledWith({
-      data: {
-        email: 'test@example.com',
-        name: 'Test User',
-        password: 'hashed-password',
-      },
+
+    it('throws ServiceUnavailableException when the database is unreachable', async () => {
+      prismaMock.user.findUnique.mockRejectedValue(
+        new Error('connect ECONNREFUSED'),
+      );
+
+      await expect(
+        service.register({
+          email: 'alice@example.com',
+          name: 'Alice',
+          password: 'pw',
+        }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
-    expect(jwtMock.signAsync).toHaveBeenCalledWith({
-      sub: 7,
-      username: 'Test User',
-    });
-    expect(result).toEqual({ access_token: 'signed-token' });
   });
 
-  it('rejects duplicate email registration', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 7,
-      email: 'test@example.com',
+  describe('login', () => {
+    it('returns an access + refresh token pair for valid credentials', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'alice@example.com',
+        name: 'Alice',
+        password: 'hashed',
+      });
+      jest.mocked(bcrypt.compare).mockResolvedValue(true as never);
+      prismaMock.refreshToken.create.mockResolvedValue({});
+      jwtMock.signAsync.mockResolvedValue('access-token');
+
+      const result = await service.login({
+        email: 'alice@example.com',
+        password: 'correct',
+      });
+
+      expect(bcrypt.compare).toHaveBeenCalledWith('correct', 'hashed');
+      expect(jwtMock.signAsync).toHaveBeenCalledWith({
+        sub: 1,
+        username: 'Alice',
+      });
+      expect(result).toMatchObject({ access_token: 'access-token' });
+      expect(typeof result.refresh_token).toBe('string');
     });
 
-    await expect(
-      service.register({
-        email: 'test@example.com',
-        name: 'Test User',
-        password: 'plain-password',
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    it('throws UnauthorizedException when the user does not exist', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
 
-    expect(prismaMock.user.create).not.toHaveBeenCalled();
+      await expect(
+        service.login({ email: 'nobody@example.com', password: 'pw' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when the password is wrong', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'alice@example.com',
+        name: 'Alice',
+        password: 'hashed',
+      });
+      jest.mocked(bcrypt.compare).mockResolvedValue(false as never);
+
+      await expect(
+        service.login({ email: 'alice@example.com', password: 'wrong' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(jwtMock.signAsync).not.toHaveBeenCalled();
+    });
+
+    it('throws ServiceUnavailableException when the database is unreachable', async () => {
+      prismaMock.user.findUnique.mockRejectedValue(
+        new Error('connect ECONNREFUSED'),
+      );
+
+      await expect(
+        service.login({ email: 'alice@example.com', password: 'pw' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
   });
 
-  it('logs in a user with valid credentials', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 7,
-      email: 'test@example.com',
-      name: 'Test User',
-      password: 'hashed-password',
-    });
-    jest.mocked(bcrypt.compare).mockResolvedValue(true as never);
-    jwtMock.signAsync.mockResolvedValue('signed-token');
+  describe('refresh', () => {
+    const futureDate = new Date(Date.now() + 60_000);
+    const pastDate = new Date(Date.now() - 60_000);
 
-    const result = await service.login({
-      email: 'test@example.com',
-      password: 'plain-password',
+    it('rotates the refresh token and returns a new token pair', async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        id: 99,
+        expiresAt: futureDate,
+        user: { id: 1, name: 'Alice' },
+      });
+      prismaMock.refreshToken.delete.mockResolvedValue({});
+      prismaMock.refreshToken.create.mockResolvedValue({});
+      jwtMock.signAsync.mockResolvedValue('new-access-token');
+
+      const result = await service.refresh('valid-refresh-token');
+
+      expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
+      expect(result).toMatchObject({ access_token: 'new-access-token' });
+      expect(typeof result!.refresh_token).toBe('string');
     });
 
-    expect(bcrypt.compare).toHaveBeenCalledWith(
-      'plain-password',
-      'hashed-password',
-    );
-    expect(jwtMock.signAsync).toHaveBeenCalledWith({
-      sub: 7,
-      username: 'Test User',
+    it('throws UnauthorizedException and deletes the record for an expired token', async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        id: 99,
+        expiresAt: pastDate,
+        user: { id: 1, name: 'Alice' },
+      });
+      prismaMock.refreshToken.delete.mockResolvedValue({});
+
+      await expect(service.refresh('expired-token')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+
+      expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
+        where: { id: 99 },
+      });
     });
-    expect(result).toEqual({ access_token: 'signed-token' });
+
+    it('throws UnauthorizedException for an unknown token', async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue(null);
+
+      await expect(service.refresh('unknown-token')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+
+      expect(prismaMock.refreshToken.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws ServiceUnavailableException when the database is unreachable', async () => {
+      prismaMock.refreshToken.findUnique.mockRejectedValue(
+        new Error('connect ECONNREFUSED'),
+      );
+
+      await expect(service.refresh('any-token')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    });
   });
 
-  it('rejects login when the user does not exist', async () => {
-    prismaMock.user.findUnique.mockResolvedValue(null);
+  describe('logout', () => {
+    it('deletes the refresh token by hash', async () => {
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
-    await expect(
-      service.login({
-        email: 'missing@example.com',
-        password: 'plain-password',
-      }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        service.logout('some-refresh-token'),
+      ).resolves.toBeUndefined();
 
-    expect(bcrypt.compare).not.toHaveBeenCalled();
-  });
-
-  it('rejects login when the password is invalid', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 7,
-      email: 'test@example.com',
-      name: 'Test User',
-      password: 'hashed-password',
+      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { tokenHash: expect.any(String) },
+      });
     });
-    jest.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
-    await expect(
-      service.login({
-        email: 'test@example.com',
-        password: 'wrong-password',
-      }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    it('succeeds silently when the token is already gone (idempotent)', async () => {
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
 
-    expect(jwtMock.signAsync).not.toHaveBeenCalled();
+      await expect(
+        service.logout('already-gone-token'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws ServiceUnavailableException when the database is unreachable', async () => {
+      prismaMock.refreshToken.deleteMany.mockRejectedValue(
+        new Error('connect ECONNREFUSED'),
+      );
+
+      await expect(service.logout('any-token')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    });
   });
 });

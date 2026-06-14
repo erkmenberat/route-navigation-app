@@ -5,9 +5,13 @@ import { AuthService } from './auth.service';
 describe('AuthController', () => {
   let controller: AuthController;
 
+  const tokens = { access_token: 'at', refresh_token: 'rt' };
+
   const authServiceMock = {
-    login: jest.fn(),
     register: jest.fn(),
+    login: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -21,43 +25,53 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
   });
 
-  it('delegates register requests to AuthService', async () => {
-    const dto = {
-      email: 'test@example.com',
-      name: 'Test User',
-      password: 'plain-password',
-    };
-    authServiceMock.register.mockResolvedValue({
-      access_token: 'register-token',
-    });
+  describe('register', () => {
+    it('delegates to AuthService.register and returns the token pair', async () => {
+      authServiceMock.register.mockResolvedValue(tokens);
+      const dto = { email: 'alice@example.com', name: 'Alice', password: 'pw' };
 
-    await expect(controller.register(dto)).resolves.toEqual({
-      access_token: 'register-token',
+      await expect(controller.register(dto)).resolves.toEqual(tokens);
+      expect(authServiceMock.register).toHaveBeenCalledWith(dto);
     });
-    expect(authServiceMock.register).toHaveBeenCalledWith(dto);
   });
 
-  it('delegates login requests to AuthService', async () => {
-    const dto = {
-      email: 'test@example.com',
-      password: 'plain-password',
-    };
-    authServiceMock.login.mockResolvedValue({ access_token: 'login-token' });
+  describe('login', () => {
+    it('delegates to AuthService.login and returns the token pair', async () => {
+      authServiceMock.login.mockResolvedValue(tokens);
+      const dto = { email: 'alice@example.com', password: 'pw' };
 
-    await expect(controller.login(dto)).resolves.toEqual({
-      access_token: 'login-token',
+      await expect(controller.login(dto)).resolves.toEqual(tokens);
+      expect(authServiceMock.login).toHaveBeenCalledWith(dto);
     });
-    expect(authServiceMock.login).toHaveBeenCalledWith(dto);
   });
 
-  it('returns the authenticated request user from me', () => {
-    const req = {
-      user: {
-        userId: 7,
-        username: 'Test User',
-      },
-    };
+  describe('refresh', () => {
+    it('extracts refreshToken from the body DTO and delegates to AuthService.refresh', async () => {
+      authServiceMock.refresh.mockResolvedValue(tokens);
 
-    expect(controller.me(req)).toEqual(req.user);
+      await expect(
+        controller.refresh({ refreshToken: 'rt-value' }),
+      ).resolves.toEqual(tokens);
+      expect(authServiceMock.refresh).toHaveBeenCalledWith('rt-value');
+    });
+  });
+
+  describe('logout', () => {
+    it('extracts refreshToken from the body DTO and delegates to AuthService.logout', async () => {
+      authServiceMock.logout.mockResolvedValue(undefined);
+
+      await expect(
+        controller.logout({ refreshToken: 'rt-value' }),
+      ).resolves.toBeUndefined();
+      expect(authServiceMock.logout).toHaveBeenCalledWith('rt-value');
+    });
+  });
+
+  describe('me', () => {
+    it('returns the user object injected by JwtAuthGuard', () => {
+      const req = { user: { userId: 1, username: 'Alice' } };
+
+      expect(controller.me(req)).toEqual({ userId: 1, username: 'Alice' });
+    });
   });
 });

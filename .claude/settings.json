@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm add *)"
+      "Bash(pnpm add *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\r\\\\route-navigation-app\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Test-Path \"c:\\\\r\\\\route-navigation-app\\\\backend\\\\src\\\\auth\\\\auth.controller.spec.ts\")",
+      "Bash(npx jest *)"
     ]
   }
 }
