@@ -30,7 +30,6 @@ export default function LoginScreen() {
         password,
       });
 
-      console.log(response.data);
       await saveAuthToken(response.data.access_token);
       setStatusType('success');
       setStatusMessage('Login successful. Backend and database are reachable.');
