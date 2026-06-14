@@ -1,4 +1,12 @@
-import Mapbox, { Camera, CircleLayer, LineLayer, MapView, PointAnnotation, ShapeSource } from '@rnmapbox/maps';
+import Mapbox, {
+  Camera,
+  CircleLayer,
+  LineLayer,
+  MapView,
+  PointAnnotation,
+  ShapeSource,
+  UserTrackingMode,
+} from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,6 +19,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,6 +28,7 @@ const fallbackCoordinate: [number, number] = [-43.2268, -22.9358];
 
 type Coordinate = [number, number];
 type NavigationMode = 'simulation' | 'live';
+type MapPerspective = 'overview' | 'navigation';
 
 type GeocodingFeature = {
   id: string;
@@ -59,13 +69,17 @@ function calculateBearing(start: Coordinate, end: Coordinate) {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const currentCoordinateRef = useRef<Coordinate | null>(null);
+  const currentHeadingRef = useRef(0);
   const driverCoordinateRef = useRef<Coordinate | null>(null);
   const locationStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isNavigatingRef = useRef(false);
   const navigationModeRef = useRef<NavigationMode>('simulation');
+  const mapPerspectiveRef = useRef<MapPerspective>('overview');
   const [currentCoordinate, setCurrentCoordinate] = useState<Coordinate | null>(null);
+  const [currentHeading, setCurrentHeading] = useState(0);
   const [cameraCenter, setCameraCenter] = useState<Coordinate>(fallbackCoordinate);
   const [cameraUpdateId, setCameraUpdateId] = useState(0);
   const [locationStatus, setLocationStatus] = useState('Standort wird vorbereitet...');
@@ -86,6 +100,13 @@ export default function HomeScreen() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [driverCoordinate, setDriverCoordinate] = useState<Coordinate | null>(null);
   const [driverBearing, setDriverBearing] = useState(0);
+  const [mapPerspective, setMapPerspective] = useState<MapPerspective>('overview');
+  const navigationCameraPadding = {
+    paddingBottom: 56,
+    paddingLeft: 0,
+    paddingRight: 0,
+    paddingTop: Math.max(180, Math.round(windowHeight * 0.34)),
+  };
 
   const clearSimulationInterval = useCallback(() => {
     if (simulationIntervalRef.current) {
@@ -123,12 +144,20 @@ export default function HomeScreen() {
     }, 3000);
   }, []);
 
-  const updateCurrentCoordinate = useCallback((coordinate: Coordinate) => {
+  const updateCurrentCoordinate = useCallback((coordinate: Coordinate, heading?: number | null) => {
     const isFirstLocation = !currentCoordinateRef.current;
     const previousCoordinate = currentCoordinateRef.current;
+    const hasGpsHeading = typeof heading === 'number' && heading >= 0;
+    const nextHeading = hasGpsHeading
+      ? heading
+      : previousCoordinate
+        ? calculateBearing(previousCoordinate, coordinate)
+        : currentHeadingRef.current;
 
     currentCoordinateRef.current = coordinate;
+    currentHeadingRef.current = nextHeading;
     setCurrentCoordinate(coordinate);
+    setCurrentHeading(nextHeading);
 
     if (isNavigatingRef.current && navigationModeRef.current === 'live') {
       updateDriverCoordinate(coordinate, previousCoordinate);
@@ -151,6 +180,10 @@ export default function HomeScreen() {
       clearSimulationInterval();
     }
   }, [clearSimulationInterval, navigationMode]);
+
+  useEffect(() => {
+    mapPerspectiveRef.current = mapPerspective;
+  }, [mapPerspective]);
 
   useEffect(() => {
     if (!mapboxToken) {
@@ -183,7 +216,7 @@ export default function HomeScreen() {
       updateCurrentCoordinate([
         initialPosition.coords.longitude,
         initialPosition.coords.latitude,
-      ]);
+      ], initialPosition.coords.heading);
       showTemporaryLocationStatus('Live-Standort aktiv');
 
       locationSubscription = await Location.watchPositionAsync(
@@ -196,7 +229,7 @@ export default function HomeScreen() {
           updateCurrentCoordinate([
             position.coords.longitude,
             position.coords.latitude,
-          ]);
+          ], position.coords.heading);
         }
       );
     }
@@ -393,6 +426,16 @@ export default function HomeScreen() {
     setCameraUpdateId((value) => value + 1);
   }
 
+  function toggleMapPerspective() {
+    const nextPerspective = mapPerspective === 'overview' ? 'navigation' : 'overview';
+    const nextCenter = driverCoordinate ?? currentCoordinate ?? cameraCenter;
+
+    mapPerspectiveRef.current = nextPerspective;
+    setMapPerspective(nextPerspective);
+    setCameraCenter(nextCenter);
+    setCameraUpdateId((value) => value + 1);
+  }
+
   function changeNavigationMode(mode: NavigationMode) {
     setNavigationMode(mode);
 
@@ -452,12 +495,22 @@ export default function HomeScreen() {
       const nextCoordinate = routeCoordinates[routeIndex];
       updateDriverCoordinate(nextCoordinate, routeCoordinates[routeIndex - 1]);
 
+      if (mapPerspectiveRef.current === 'navigation') {
+        setCameraCenter(nextCoordinate);
+        setCameraUpdateId((value) => value + 1);
+      }
+
       if (routeIndex % 8 === 0) {
         setCameraCenter(nextCoordinate);
         setCameraUpdateId((value) => value + 1);
       }
     }, 650);
   }
+
+  const navigationCameraTarget = driverCoordinate ?? currentCoordinate ?? cameraCenter;
+  const navigationCameraHeading = navigationMode === 'simulation' && isNavigating
+    ? driverBearing
+    : currentHeading;
 
   if (!mapboxToken) {
     return (
@@ -481,13 +534,25 @@ export default function HomeScreen() {
         styleURL="mapbox://styles/mapbox/standard"
       >
         <Camera
-          key={cameraUpdateId}
-          animationDuration={800}
-          animationMode="flyTo"
-          centerCoordinate={cameraCenter}
-          heading={-161.81}
-          pitch={70}
-          zoomLevel={currentCoordinate || selectedDestination ? 15 : 12.1}
+          animationDuration={900}
+          animationMode="easeTo"
+          centerCoordinate={mapPerspective === 'overview' ? cameraCenter : navigationCameraTarget}
+          followHeading={navigationCameraHeading}
+          followPadding={navigationCameraPadding}
+          followPitch={55}
+          followUserLocation={
+            mapPerspective === 'navigation' && navigationMode === 'live' && !!currentCoordinate
+          }
+          followUserMode={UserTrackingMode.FollowWithCourse}
+          followZoomLevel={17}
+          heading={mapPerspective === 'overview' ? 0 : navigationCameraHeading}
+          pitch={mapPerspective === 'overview' ? 0 : 55}
+          triggerKey={`${mapPerspective}-${cameraUpdateId}`}
+          zoomLevel={mapPerspective === 'overview'
+            ? currentCoordinate || selectedDestination
+              ? 14.5
+              : 12.1
+            : 17}
         />
 
         {routeCoordinates.length > 0 ? (
@@ -636,6 +701,23 @@ export default function HomeScreen() {
         ]}
       >
         <Ionicons name="locate" color="#111827" size={24} />
+      </Pressable>
+
+      <Pressable
+        accessibilityLabel={
+          mapPerspective === 'overview'
+            ? 'Zur Navigationsperspektive wechseln'
+            : 'Zur Uebersichtsperspektive wechseln'
+        }
+        hitSlop={8}
+        onPress={toggleMapPerspective}
+        style={[styles.perspectiveButton, { bottom: insets.bottom + 152 }]}
+      >
+        <Ionicons
+          name={mapPerspective === 'overview' ? 'navigate' : 'map'}
+          color="#111827"
+          size={24}
+        />
       </Pressable>
 
       {isLocationStatusVisible ? (
@@ -798,6 +880,22 @@ const styles = StyleSheet.create({
   },
   recenterButtonDisabled: {
     opacity: 0.55,
+  },
+  perspectiveButton: {
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 28,
+    elevation: 6,
+    height: 56,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    width: 56,
+    zIndex: 2,
   },
   driverMarker: {
     alignItems: 'center',
