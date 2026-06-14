@@ -1,4 +1,8 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRouteDto } from './dto/create-route.dto';
@@ -35,6 +39,32 @@ export class RoutesService {
         where: { userId },
         orderBy: { createdAt: 'desc' },
       });
+    } catch (error) {
+      this.throwDatabaseConnectionError(error);
+    }
+  }
+
+  async deleteForUser(userId: number, routeId: number) {
+    try {
+      const route = await this.prisma.route.findFirst({
+        where: {
+          id: routeId,
+          userId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!route) {
+        throw new NotFoundException('Route not found');
+      }
+
+      await this.prisma.route.delete({
+        where: { id: route.id },
+      });
+
+      return { deleted: true, id: route.id };
     } catch (error) {
       this.throwDatabaseConnectionError(error);
     }

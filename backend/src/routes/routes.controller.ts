@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateRouteDto } from './dto/create-route.dto';
 import { RoutesService } from './routes.service';
@@ -19,5 +29,13 @@ export class RoutesController {
   @Get('history')
   getHistory(@Request() req: { user: { userId: number; username: string } }) {
     return this.routesService.findAllForUser(req.user.userId);
+  }
+
+  @Delete('history/:id')
+  deleteHistory(
+    @Request() req: { user: { userId: number; username: string } },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.routesService.deleteForUser(req.user.userId, id);
   }
 }

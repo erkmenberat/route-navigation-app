@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -48,6 +49,7 @@ export default function HistoryScreen() {
   const [routes, setRoutes] = useState<RouteHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deletingRouteId, setDeletingRouteId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   const loadHistory = useCallback(async (isRefresh = false) => {
@@ -76,6 +78,38 @@ export default function HistoryScreen() {
       void loadHistory();
     }, [loadHistory])
   );
+
+  const deleteRoute = useCallback(async (routeId: number) => {
+    setDeletingRouteId(routeId);
+    setErrorMessage('');
+
+    try {
+      await api.delete(`/routes/history/${routeId}`);
+      setRoutes((currentRoutes) => currentRoutes.filter((route) => route.id !== routeId));
+    } catch (error) {
+      console.log(error);
+      setErrorMessage('Route konnte nicht geloescht werden.');
+    } finally {
+      setDeletingRouteId(null);
+    }
+  }, []);
+
+  const confirmDeleteRoute = useCallback((route: RouteHistoryItem) => {
+    Alert.alert(
+      'Route loeschen',
+      `Moechtest du diese Route wirklich loeschen?\n\n${route.destination ?? 'Unbekanntes Ziel'}`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Loeschen',
+          style: 'destructive',
+          onPress: () => {
+            void deleteRoute(route.id);
+          },
+        },
+      ]
+    );
+  }, [deleteRoute]);
 
   if (isLoading) {
     return (
@@ -120,7 +154,22 @@ export default function HistoryScreen() {
         }
         renderItem={({ item }) => (
           <View style={styles.routeCard}>
-            <Text style={styles.routeDate}>{formatDate(item.createdAt)}</Text>
+            <View style={styles.cardHeader}>
+              <Text style={styles.routeDate}>{formatDate(item.createdAt)}</Text>
+              <Pressable
+                accessibilityLabel="Route loeschen"
+                disabled={deletingRouteId === item.id}
+                onPress={() => confirmDeleteRoute(item)}
+                style={[
+                  styles.deleteButton,
+                  deletingRouteId === item.id ? styles.deleteButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {deletingRouteId === item.id ? '...' : 'Loeschen'}
+                </Text>
+              </Pressable>
+            </View>
             <Text numberOfLines={2} style={styles.routeDestination}>
               {item.destination ?? 'Unbekanntes Ziel'}
             </Text>
@@ -221,11 +270,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
   },
+  cardHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   routeDate: {
     color: '#9ca3af',
+    flex: 1,
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 8,
+  },
+  deleteButton: {
+    backgroundColor: '#7f1d1d',
+    borderRadius: 6,
+    minWidth: 82,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonText: {
+    color: '#fecaca',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   routeDestination: {
     color: 'white',
