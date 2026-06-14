@@ -7,6 +7,7 @@ import Mapbox, {
   ShapeSource,
   UserTrackingMode,
 } from '@rnmapbox/maps';
+import { api } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,6 +30,13 @@ const fallbackCoordinate: [number, number] = [-43.2268, -22.9358];
 type Coordinate = [number, number];
 type NavigationMode = 'simulation' | 'live';
 type MapPerspective = 'overview' | 'navigation';
+
+type RouteSummary = {
+  distanceKm: number;
+  distanceMeters: number;
+  durationMin: number;
+  durationSeconds: number;
+};
 
 type GeocodingFeature = {
   id: string;
@@ -76,6 +84,8 @@ export default function HomeScreen() {
   const locationStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const simulationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isNavigatingRef = useRef(false);
+  const navigationStartedAtRef = useRef<string | null>(null);
+  const savedRouteKeyRef = useRef<string | null>(null);
   const navigationModeRef = useRef<NavigationMode>('simulation');
   const mapPerspectiveRef = useRef<MapPerspective>('overview');
   const [currentCoordinate, setCurrentCoordinate] = useState<Coordinate | null>(null);
@@ -90,10 +100,7 @@ export default function HomeScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
-  const [routeSummary, setRouteSummary] = useState<{
-    distanceKm: number;
-    durationMin: number;
-  } | null>(null);
+  const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
   const [navigationMode, setNavigationMode] = useState<NavigationMode>('simulation');
@@ -114,12 +121,6 @@ export default function HomeScreen() {
       simulationIntervalRef.current = null;
     }
   }, []);
-
-  const stopNavigation = useCallback(() => {
-    clearSimulationInterval();
-    isNavigatingRef.current = false;
-    setIsNavigating(false);
-  }, [clearSimulationInterval]);
 
   const updateDriverCoordinate = useCallback((coordinate: Coordinate, previousCoordinate?: Coordinate | null) => {
     const origin = previousCoordinate ?? driverCoordinateRef.current;
@@ -143,6 +144,52 @@ export default function HomeScreen() {
       setIsLocationStatusVisible(false);
     }, 3000);
   }, []);
+
+  const saveRouteHistory = useCallback(async () => {
+    const firstCoordinate = routeCoordinates[0];
+    const lastCoordinate = routeCoordinates[routeCoordinates.length - 1];
+
+    if (!firstCoordinate || !lastCoordinate || !selectedDestination || !routeSummary) {
+      return;
+    }
+
+    const routeKey = `${selectedDestination.id}-${routeSummary.distanceMeters}-${routeSummary.durationSeconds}`;
+
+    if (savedRouteKeyRef.current === routeKey) {
+      return;
+    }
+
+    try {
+      await api.post('/routes/history', {
+        origin: 'Aktueller Standort',
+        destination: selectedDestination.place_name,
+        startLat: firstCoordinate[1],
+        startLong: firstCoordinate[0],
+        finishLat: lastCoordinate[1],
+        finishLong: lastCoordinate[0],
+        startAt: navigationStartedAtRef.current ?? new Date().toISOString(),
+        finishAt: new Date().toISOString(),
+        distance: routeSummary.distanceMeters,
+        duration: routeSummary.durationSeconds,
+      });
+
+      savedRouteKeyRef.current = routeKey;
+      showTemporaryLocationStatus('Route im Verlauf gespeichert.');
+    } catch (error) {
+      console.error(error);
+      showTemporaryLocationStatus('Route konnte nicht gespeichert werden.');
+    }
+  }, [routeCoordinates, routeSummary, selectedDestination, showTemporaryLocationStatus]);
+
+  const stopNavigation = useCallback((options?: { saveHistory?: boolean }) => {
+    clearSimulationInterval();
+    isNavigatingRef.current = false;
+    setIsNavigating(false);
+
+    if (options?.saveHistory) {
+      void saveRouteHistory();
+    }
+  }, [clearSimulationInterval, saveRouteHistory]);
 
   const updateCurrentCoordinate = useCallback((coordinate: Coordinate, heading?: number | null) => {
     const isFirstLocation = !currentCoordinateRef.current;
@@ -259,11 +306,13 @@ export default function HomeScreen() {
   }, [clearSimulationInterval]);
 
   useEffect(() => {
-    stopNavigation();
+    clearSimulationInterval();
+    isNavigatingRef.current = false;
+    setIsNavigating(false);
     setDriverCoordinate(null);
     driverCoordinateRef.current = null;
     setDriverBearing(0);
-  }, [selectedDestination?.id, stopNavigation]);
+  }, [clearSimulationInterval, selectedDestination?.id]);
 
   useEffect(() => {
     const trimmedQuery = searchQuery.trim();
@@ -377,12 +426,15 @@ export default function HomeScreen() {
         }
 
         setRouteCoordinates(coordinates);
+        savedRouteKeyRef.current = null;
         if (!driverCoordinateRef.current) {
           updateDriverCoordinate(coordinates[0]);
         }
         setRouteSummary({
           distanceKm: (route.distance ?? 0) / 1000,
+          distanceMeters: route.distance ?? 0,
           durationMin: (route.duration ?? 0) / 60,
+          durationSeconds: Math.round(route.duration ?? 0),
         });
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -458,6 +510,7 @@ export default function HomeScreen() {
     }
 
     clearSimulationInterval();
+    navigationStartedAtRef.current = new Date().toISOString();
     isNavigatingRef.current = true;
     setIsNavigating(true);
 
@@ -487,7 +540,7 @@ export default function HomeScreen() {
       routeIndex += 1;
 
       if (routeIndex >= routeCoordinates.length) {
-        stopNavigation();
+        stopNavigation({ saveHistory: true });
         showTemporaryLocationStatus('Simulation beendet');
         return;
       }
@@ -782,7 +835,7 @@ export default function HomeScreen() {
           </View>
           <Pressable
             accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
-            onPress={isNavigating ? stopNavigation : startNavigation}
+            onPress={isNavigating ? () => stopNavigation({ saveHistory: true }) : startNavigation}
             style={styles.navigationButton}
           >
             <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
