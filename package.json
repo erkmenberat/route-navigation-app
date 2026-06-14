@@ -11,10 +11,20 @@
     "backend:build": "pnpm --filter backend build",
     "backend:test": "pnpm --filter backend test",
     "prisma:generate": "pnpm --filter backend prisma:generate",
-    "prisma:validate": "pnpm --filter backend prisma:validate"
+    "prisma:validate": "pnpm --filter backend prisma:validate",
+    "prepare": "husky"
   },
-  "devDependencies": {},
+  "lint-staged": {
+    "backend/src/**/*.ts": "prettier --write --ignore-path backend/.prettierignore",
+    "backend/test/**/*.ts": "prettier --write"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7"
+  },
   "pnpm": {
-    "ignoredBuiltDependencies": ["prisma"]
+    "ignoredBuiltDependencies": [
+      "prisma"
+    ]
   }
 }

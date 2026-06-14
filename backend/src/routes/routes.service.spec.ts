@@ -99,7 +99,9 @@ describe('RoutesService', () => {
   it('throws NotFoundException when deleting a missing or foreign route', async () => {
     prismaMock.route.findFirst.mockResolvedValue(null);
 
-    await expect(service.deleteForUser(7, 99)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.deleteForUser(7, 99)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(prismaMock.route.delete).not.toHaveBeenCalled();
   });
 });

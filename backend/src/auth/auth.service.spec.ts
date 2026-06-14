@@ -106,7 +106,10 @@ describe('AuthService', () => {
       password: 'plain-password',
     });
 
-    expect(bcrypt.compare).toHaveBeenCalledWith('plain-password', 'hashed-password');
+    expect(bcrypt.compare).toHaveBeenCalledWith(
+      'plain-password',
+      'hashed-password',
+    );
     expect(jwtMock.signAsync).toHaveBeenCalledWith({
       sub: 7,
       username: 'Test User',

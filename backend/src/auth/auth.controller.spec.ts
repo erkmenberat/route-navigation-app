@@ -27,7 +27,9 @@ describe('AuthController', () => {
       name: 'Test User',
       password: 'plain-password',
     };
-    authServiceMock.register.mockResolvedValue({ access_token: 'register-token' });
+    authServiceMock.register.mockResolvedValue({
+      access_token: 'register-token',
+    });
 
     await expect(controller.register(dto)).resolves.toEqual({
       access_token: 'register-token',

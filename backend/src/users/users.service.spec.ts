@@ -54,6 +54,8 @@ describe('UsersService', () => {
   it('throws NotFoundException when the user does not exist', async () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
 
-    await expect(service.findById(999)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findById(999)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
