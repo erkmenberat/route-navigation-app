@@ -1,4 +1,4 @@
-import Mapbox, { Camera, CircleLayer, LineLayer, MapView, ShapeSource } from '@rnmapbox/maps';
+import Mapbox, { Camera, CircleLayer, LineLayer, MapView, PointAnnotation, ShapeSource } from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +18,7 @@ const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const fallbackCoordinate: [number, number] = [-43.2268, -22.9358];
 
 type Coordinate = [number, number];
+type NavigationMode = 'simulation' | 'live';
 
 type GeocodingFeature = {
   id: string;
@@ -44,10 +45,26 @@ if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
 }
 
+function calculateBearing(start: Coordinate, end: Coordinate) {
+  const [startLon, startLat] = start.map((value) => (value * Math.PI) / 180);
+  const [endLon, endLat] = end.map((value) => (value * Math.PI) / 180);
+  const deltaLon = endLon - startLon;
+  const y = Math.sin(deltaLon) * Math.cos(endLat);
+  const x =
+    Math.cos(startLat) * Math.sin(endLat) -
+    Math.sin(startLat) * Math.cos(endLat) * Math.cos(deltaLon);
+
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const currentCoordinateRef = useRef<Coordinate | null>(null);
+  const driverCoordinateRef = useRef<Coordinate | null>(null);
   const locationStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const simulationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isNavigatingRef = useRef(false);
+  const navigationModeRef = useRef<NavigationMode>('simulation');
   const [currentCoordinate, setCurrentCoordinate] = useState<Coordinate | null>(null);
   const [cameraCenter, setCameraCenter] = useState<Coordinate>(fallbackCoordinate);
   const [cameraUpdateId, setCameraUpdateId] = useState(0);
@@ -65,6 +82,34 @@ export default function HomeScreen() {
   } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [navigationMode, setNavigationMode] = useState<NavigationMode>('simulation');
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [driverCoordinate, setDriverCoordinate] = useState<Coordinate | null>(null);
+  const [driverBearing, setDriverBearing] = useState(0);
+
+  const clearSimulationInterval = useCallback(() => {
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+      simulationIntervalRef.current = null;
+    }
+  }, []);
+
+  const stopNavigation = useCallback(() => {
+    clearSimulationInterval();
+    isNavigatingRef.current = false;
+    setIsNavigating(false);
+  }, [clearSimulationInterval]);
+
+  const updateDriverCoordinate = useCallback((coordinate: Coordinate, previousCoordinate?: Coordinate | null) => {
+    const origin = previousCoordinate ?? driverCoordinateRef.current;
+
+    if (origin) {
+      setDriverBearing(calculateBearing(origin, coordinate));
+    }
+
+    driverCoordinateRef.current = coordinate;
+    setDriverCoordinate(coordinate);
+  }, []);
 
   const showTemporaryLocationStatus = useCallback((message: string) => {
     if (locationStatusTimeoutRef.current) {
@@ -78,17 +123,34 @@ export default function HomeScreen() {
     }, 3000);
   }, []);
 
-  function updateCurrentCoordinate(coordinate: Coordinate) {
+  const updateCurrentCoordinate = useCallback((coordinate: Coordinate) => {
     const isFirstLocation = !currentCoordinateRef.current;
+    const previousCoordinate = currentCoordinateRef.current;
 
     currentCoordinateRef.current = coordinate;
     setCurrentCoordinate(coordinate);
+
+    if (isNavigatingRef.current && navigationModeRef.current === 'live') {
+      updateDriverCoordinate(coordinate, previousCoordinate);
+    }
 
     if (isFirstLocation) {
       setCameraCenter(coordinate);
       setCameraUpdateId((value) => value + 1);
     }
-  }
+  }, [updateDriverCoordinate]);
+
+  useEffect(() => {
+    isNavigatingRef.current = isNavigating;
+  }, [isNavigating]);
+
+  useEffect(() => {
+    navigationModeRef.current = navigationMode;
+
+    if (navigationMode === 'live') {
+      clearSimulationInterval();
+    }
+  }, [clearSimulationInterval, navigationMode]);
 
   useEffect(() => {
     if (!mapboxToken) {
@@ -151,15 +213,24 @@ export default function HomeScreen() {
       isMounted = false;
       locationSubscription?.remove();
     };
-  }, [showTemporaryLocationStatus]);
+  }, [showTemporaryLocationStatus, updateCurrentCoordinate]);
 
   useEffect(() => {
     return () => {
       if (locationStatusTimeoutRef.current) {
         clearTimeout(locationStatusTimeoutRef.current);
       }
+
+      clearSimulationInterval();
     };
-  }, []);
+  }, [clearSimulationInterval]);
+
+  useEffect(() => {
+    stopNavigation();
+    setDriverCoordinate(null);
+    driverCoordinateRef.current = null;
+    setDriverBearing(0);
+  }, [selectedDestination?.id, stopNavigation]);
 
   useEffect(() => {
     const trimmedQuery = searchQuery.trim();
@@ -273,6 +344,9 @@ export default function HomeScreen() {
         }
 
         setRouteCoordinates(coordinates);
+        if (!driverCoordinateRef.current) {
+          updateDriverCoordinate(coordinates[0]);
+        }
         setRouteSummary({
           distanceKm: (route.distance ?? 0) / 1000,
           durationMin: (route.duration ?? 0) / 60,
@@ -296,7 +370,7 @@ export default function HomeScreen() {
     return () => {
       abortController.abort();
     };
-  }, [currentCoordinate, selectedDestination]);
+  }, [currentCoordinate, selectedDestination, updateDriverCoordinate]);
 
   function selectDestination(destination: GeocodingFeature) {
     setSelectedDestination(destination);
@@ -317,6 +391,72 @@ export default function HomeScreen() {
 
     setCameraCenter([currentCoordinate[0], currentCoordinate[1]]);
     setCameraUpdateId((value) => value + 1);
+  }
+
+  function changeNavigationMode(mode: NavigationMode) {
+    setNavigationMode(mode);
+
+    if (isNavigating) {
+      stopNavigation();
+      showTemporaryLocationStatus('Navigation gestoppt. Modus gewechselt.');
+    }
+
+    const nextDriverCoordinate = mode === 'live' ? currentCoordinate : routeCoordinates[0];
+
+    if (nextDriverCoordinate) {
+      updateDriverCoordinate(nextDriverCoordinate);
+    }
+  }
+
+  function startNavigation() {
+    if (!routeCoordinates.length) {
+      showTemporaryLocationStatus('Berechne zuerst eine Route.');
+      return;
+    }
+
+    clearSimulationInterval();
+    isNavigatingRef.current = true;
+    setIsNavigating(true);
+
+    if (navigationMode === 'live') {
+      const liveCoordinate = currentCoordinate;
+
+      if (!liveCoordinate) {
+        stopNavigation();
+        showTemporaryLocationStatus('Live-Standort ist noch nicht verfuegbar.');
+        return;
+      }
+
+      updateDriverCoordinate(liveCoordinate);
+      setCameraCenter(liveCoordinate);
+      setCameraUpdateId((value) => value + 1);
+      showTemporaryLocationStatus('Live-EchtNavig aktiv');
+      return;
+    }
+
+    let routeIndex = 0;
+    updateDriverCoordinate(routeCoordinates[routeIndex]);
+    setCameraCenter(routeCoordinates[routeIndex]);
+    setCameraUpdateId((value) => value + 1);
+    showTemporaryLocationStatus('Simulation aktiv');
+
+    simulationIntervalRef.current = setInterval(() => {
+      routeIndex += 1;
+
+      if (routeIndex >= routeCoordinates.length) {
+        stopNavigation();
+        showTemporaryLocationStatus('Simulation beendet');
+        return;
+      }
+
+      const nextCoordinate = routeCoordinates[routeIndex];
+      updateDriverCoordinate(nextCoordinate, routeCoordinates[routeIndex - 1]);
+
+      if (routeIndex % 8 === 0) {
+        setCameraCenter(nextCoordinate);
+        setCameraUpdateId((value) => value + 1);
+      }
+    }, 650);
   }
 
   if (!mapboxToken) {
@@ -422,6 +562,19 @@ export default function HomeScreen() {
             />
           </ShapeSource>
         ) : null}
+
+        {driverCoordinate ? (
+          <PointAnnotation id="driver-marker" coordinate={driverCoordinate}>
+            <View
+              style={[
+                styles.driverMarker,
+                { transform: [{ rotate: `${driverBearing}deg` }] },
+              ]}
+            >
+              <Ionicons name="navigate" color="#111827" size={22} />
+            </View>
+          </PointAnnotation>
+        ) : null}
       </MapView>
 
       <View style={[styles.searchPanel, { top: insets.top + 12 }]}>
@@ -438,6 +591,9 @@ export default function HomeScreen() {
             setRouteCoordinates([]);
             setRouteSummary(null);
             setRouteError('');
+            stopNavigation();
+            setDriverCoordinate(null);
+            driverCoordinateRef.current = null;
           }}
         />
 
@@ -496,6 +652,62 @@ export default function HomeScreen() {
             <Text style={styles.routeInfoSeparator}>|</Text>
             <Text style={styles.routeInfoValue}>{Math.round(routeSummary.durationMin)} min</Text>
           </View>
+          <View style={styles.navigationModeRow}>
+            <Pressable
+              accessibilityLabel="Simulation auswaehlen"
+              onPress={() => changeNavigationMode('simulation')}
+              style={[
+                styles.modeButton,
+                navigationMode === 'simulation' ? styles.modeButtonActive : null,
+              ]}
+            >
+              <Ionicons
+                name="play-forward"
+                color={navigationMode === 'simulation' ? '#111827' : '#f9fafb'}
+                size={16}
+              />
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  navigationMode === 'simulation' ? styles.modeButtonTextActive : null,
+                ]}
+              >
+                Simulation
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Live-EchtNavigation auswaehlen"
+              onPress={() => changeNavigationMode('live')}
+              style={[
+                styles.modeButton,
+                navigationMode === 'live' ? styles.modeButtonActive : null,
+              ]}
+            >
+              <Ionicons
+                name="navigate-circle"
+                color={navigationMode === 'live' ? '#111827' : '#f9fafb'}
+                size={16}
+              />
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  navigationMode === 'live' ? styles.modeButtonTextActive : null,
+                ]}
+              >
+                Live-EchtNavig
+              </Text>
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+            onPress={isNavigating ? stopNavigation : startNavigation}
+            style={styles.navigationButton}
+          >
+            <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
+            <Text style={styles.navigationButtonText}>
+              {isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+            </Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -587,6 +799,16 @@ const styles = StyleSheet.create({
   recenterButtonDisabled: {
     opacity: 0.55,
   },
+  driverMarker: {
+    alignItems: 'center',
+    backgroundColor: '#facc15',
+    borderColor: '#111827',
+    borderRadius: 18,
+    borderWidth: 2,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
   locationStatus: {
     position: 'absolute',
     left: 16,
@@ -638,6 +860,51 @@ const styles = StyleSheet.create({
   routeInfoSeparator: {
     color: '#6b7280',
     fontSize: 18,
+  },
+  navigationModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  modeButton: {
+    alignItems: 'center',
+    borderColor: 'rgba(249, 250, 251, 0.28)',
+    borderRadius: 6,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 8,
+  },
+  modeButtonActive: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#f9fafb',
+  },
+  modeButtonText: {
+    color: '#f9fafb',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modeButtonTextActive: {
+    color: '#111827',
+  },
+  navigationButton: {
+    alignItems: 'center',
+    backgroundColor: '#facc15',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  navigationButtonText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
   },
   missingTokenContainer: {
     flex: 1,
