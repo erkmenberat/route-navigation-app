@@ -3,9 +3,9 @@
   "private": true,
   "packageManager": "pnpm@11.3.0",
   "scripts": {
-    "frontend:start": "pnpm --filter frontend start",
-    "frontend:android": "pnpm --filter frontend android",
-    "frontend:lint": "pnpm --filter frontend lint",
+    "mobile:start": "pnpm --filter mobile start",
+    "mobile:android": "pnpm --filter mobile android",
+    "mobile:lint": "pnpm --filter mobile lint",
     "backend:start": "pnpm --filter backend start",
     "backend:start:dev": "pnpm --filter backend start:dev",
     "backend:build": "pnpm --filter backend build",

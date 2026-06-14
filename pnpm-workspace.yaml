@@ -1,6 +1,6 @@
 packages:
   - backend
-  - frontend
+  - mobile
 
 allowBuilds:
   '@nestjs/core': true
