@@ -59,6 +59,7 @@ export default function HomeScreen() {
     setSelectedDestination,
     isSearching,
     searchError,
+    hasNoResults,
     routeCoordinates,
     routeSummary,
     isRouteLoading,
@@ -231,6 +232,7 @@ export default function HomeScreen() {
       </MapView>
 
       <SearchPanel
+        hasNoResults={hasNoResults}
         isRouteLoading={isRouteLoading}
         isSearching={isSearching}
         routeError={routeError}

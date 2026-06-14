@@ -16,6 +16,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
   const [selectedDestination, setSelectedDestination] = useState<GeocodingFeature | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [lastSearchedQuery, setLastSearchedQuery] = useState('');
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
@@ -29,6 +30,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
       setSearchResults([]);
       setSearchError('');
       setIsSearching(false);
+      setLastSearchedQuery('');
       return;
     }
 
@@ -36,6 +38,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
       setSearchResults([]);
       setSearchError('');
       setIsSearching(false);
+      setLastSearchedQuery('');
       return;
     }
 
@@ -44,12 +47,19 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
       setIsSearching(true);
       setSearchError('');
 
+      let timedOut = false;
+      const requestTimeoutId = setTimeout(() => {
+        timedOut = true;
+        abortController.abort();
+      }, 10000);
+
       try {
         const params = new URLSearchParams({
           access_token: mapboxToken,
           autocomplete: 'true',
           language: 'de',
           limit: '5',
+          q: trimmedQuery,
         });
         const proximity = currentCoordinateRef.current;
         if (proximity) {
@@ -57,7 +67,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
         }
 
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmedQuery)}.json?${params.toString()}`,
+          `https://api.mapbox.com/search/geocode/v6/forward?${params.toString()}`,
           { signal: abortController.signal },
         );
 
@@ -66,13 +76,27 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
         }
 
         const data = (await response.json()) as GeocodingResponse;
-        setSearchResults(data.features ?? []);
+        const features = (data.features ?? []).map((f) => ({
+          id: f.id,
+          place_name: f.properties.full_address ?? f.properties.name ?? '',
+          center: f.geometry.coordinates,
+        }));
+        setSearchResults(features);
+        setLastSearchedQuery(trimmedQuery);
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') {
+          if (timedOut) {
+            setSearchError('Zeitüberschreitung. Bitte erneut versuchen.');
+            setLastSearchedQuery(trimmedQuery);
+          }
+          return;
+        }
         console.error(error);
         setSearchResults([]);
+        setLastSearchedQuery(trimmedQuery);
         setSearchError('Zielsuche konnte nicht geladen werden.');
       } finally {
+        clearTimeout(requestTimeoutId);
         setIsSearching(false);
       }
     }, 400);
@@ -158,9 +182,17 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
     setSearchQuery(destination.place_name);
     setSearchResults([]);
     setSearchError('');
+    setLastSearchedQuery('');
     setRouteError('');
     setRouteSummary(null);
   }, []);
+
+  const hasNoResults =
+    !isSearching &&
+    lastSearchedQuery.length >= 3 &&
+    lastSearchedQuery === searchQuery.trim() &&
+    searchResults.length === 0 &&
+    !searchError;
 
   return {
     searchQuery,
@@ -170,6 +202,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
     setSelectedDestination,
     isSearching,
     searchError,
+    hasNoResults,
     routeCoordinates,
     routeSummary,
     isRouteLoading,

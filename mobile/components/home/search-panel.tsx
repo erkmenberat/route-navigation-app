@@ -6,6 +6,7 @@ interface SearchPanelProps {
   searchResults: GeocodingFeature[];
   isSearching: boolean;
   searchError: string;
+  hasNoResults: boolean;
   isRouteLoading: boolean;
   routeError: string;
   topInset: number;
@@ -18,6 +19,7 @@ export function SearchPanel({
   searchResults,
   isSearching,
   searchError,
+  hasNoResults,
   isRouteLoading,
   routeError,
   topInset,
@@ -43,6 +45,9 @@ export function SearchPanel({
         </View>
       ) : null}
 
+      {hasNoResults ? (
+        <Text style={styles.stateText}>Keine Ergebnisse gefunden.</Text>
+      ) : null}
       {searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
       {isRouteLoading ? <Text style={styles.stateText}>Route wird berechnet...</Text> : null}
       {routeError ? <Text style={styles.errorText}>{routeError}</Text> : null}

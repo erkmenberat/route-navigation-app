@@ -15,8 +15,14 @@ export type GeocodingFeature = {
   center: Coordinate;
 };
 
+type GeocodingV6Feature = {
+  id: string;
+  geometry: { coordinates: [number, number] };
+  properties: { full_address?: string; name?: string };
+};
+
 export type GeocodingResponse = {
-  features?: GeocodingFeature[];
+  features?: GeocodingV6Feature[];
 };
 
 export type DirectionsResponse = {
