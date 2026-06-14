@@ -9,5 +9,6 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/User'
+export type * from './models/RefreshToken'
 export type * from './models/Route'
 export type * from './commonInputTypes'

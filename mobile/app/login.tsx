@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
-import { saveAuthToken } from '@/services/auth-token';
+import { saveAuthToken, saveRefreshToken } from '@/services/auth-token';
 import { useState } from 'react';
 import {
   Alert,
@@ -31,6 +31,7 @@ export default function LoginScreen() {
       });
 
       await saveAuthToken(response.data.access_token);
+      await saveRefreshToken(response.data.refresh_token);
       setStatusType('success');
       setStatusMessage('Login successful. Backend and database are reachable.');
 

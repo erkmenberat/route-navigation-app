@@ -14,13 +14,23 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  email     String   @unique
-  password  String
-  name      String
+  id            Int            @id @default(autoincrement())
+  createdAt     DateTime       @default(now())
+  email         String         @unique
+  password      String
+  name          String
 
-  routes    Route[]
+  routes        Route[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Route {

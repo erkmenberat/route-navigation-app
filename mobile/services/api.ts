@@ -1,31 +1,105 @@
 import axios from 'axios';
 import { router } from 'expo-router';
 
-import { deleteAuthToken, getAuthToken } from './auth-token';
+import {
+  deleteAllTokens,
+  getAuthToken,
+  getRefreshToken,
+  saveAuthToken,
+  saveRefreshToken,
+} from './auth-token';
+
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4001';
 
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4001',
+  baseURL: BASE_URL,
   timeout: 8000,
 });
 
+// Attach access token to every request
 api.interceptors.request.use(async (config) => {
   const token = await getAuthToken();
-
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
 });
+
+// Queue of requests waiting for a token refresh to complete
+let isRefreshing = false;
+let pendingRequests: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function settlePendingRequests(err: unknown, token: string | null) {
+  pendingRequests.forEach(({ resolve, reject }) => {
+    if (err) reject(err);
+    else resolve(token!);
+  });
+  pendingRequests = [];
+}
+
+async function clearSessionAndRedirect() {
+  await deleteAllTokens();
+  router.replace('/login');
+}
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      await deleteAuthToken();
-      router.replace('/login');
+    if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const originalRequest = error.config as any;
+
+    // Don't retry the refresh call itself — avoids infinite loops
+    if (originalRequest._isRetry) {
+      await clearSessionAndRedirect();
+      return Promise.reject(error);
+    }
+
+    // Another request is already refreshing — queue this one until done
+    if (isRefreshing) {
+      return new Promise<string>((resolve, reject) => {
+        pendingRequests.push({ resolve, reject });
+      }).then((newToken) => {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      });
+    }
+
+    originalRequest._isRetry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshToken = await getRefreshToken();
+
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const { data } = await axios.post<{ access_token: string; refresh_token: string }>(
+        `${BASE_URL}/auth/refresh`,
+        { refreshToken },
+      );
+
+      await saveAuthToken(data.access_token);
+      await saveRefreshToken(data.refresh_token);
+
+      api.defaults.headers.common.Authorization = `Bearer ${data.access_token}`;
+      settlePendingRequests(null, data.access_token);
+
+      originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+      return api(originalRequest);
+    } catch (refreshError) {
+      settlePendingRequests(refreshError, null);
+      await clearSessionAndRedirect();
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
   },
 );

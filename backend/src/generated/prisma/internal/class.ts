@@ -20,7 +20,7 @@ const config: runtime.GetPrismaClientConfig = {
   "clientVersion": "7.2.0",
   "engineVersion": "0c8ef2ce45c83248ab3df073180d5eda9e8be7a3",
   "activeProvider": "postgresql",
-  "inlineSchema": "// This is your Prisma schema file,\n// learn more about it in the docs: https://pris.ly/d/prisma-schema\n\n// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?\n// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init\n\ngenerator client {\n  provider = \"prisma-client\"\n  output   = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel User {\n  id        Int      @id @default(autoincrement())\n  createdAt DateTime @default(now())\n  email     String   @unique\n  password  String\n  name      String\n\n  routes Route[]\n}\n\nmodel Route {\n  id Int @id @default(autoincrement())\n\n  userId Int\n  user   User @relation(fields: [userId], references: [id])\n\n  origin      String?\n  destination String?\n\n  startLat   Float\n  startLong  Float\n  finishLat  Float\n  finishLong Float\n\n  startAt  DateTime?\n  finishAt DateTime?\n\n  distance Float\n  duration Int\n\n  createdAt DateTime @default(now())\n}\n",
+  "inlineSchema": "// This is your Prisma schema file,\n// learn more about it in the docs: https://pris.ly/d/prisma-schema\n\n// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?\n// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init\n\ngenerator client {\n  provider = \"prisma-client\"\n  output   = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nmodel User {\n  id        Int      @id @default(autoincrement())\n  createdAt DateTime @default(now())\n  email     String   @unique\n  password  String\n  name      String\n\n  routes        Route[]\n  refreshTokens RefreshToken[]\n}\n\nmodel RefreshToken {\n  id        Int      @id @default(autoincrement())\n  userId    Int\n  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)\n  tokenHash String   @unique\n  expiresAt DateTime\n  createdAt DateTime @default(now())\n}\n\nmodel Route {\n  id Int @id @default(autoincrement())\n\n  userId Int\n  user   User @relation(fields: [userId], references: [id])\n\n  origin      String?\n  destination String?\n\n  startLat   Float\n  startLong  Float\n  finishLat  Float\n  finishLong Float\n\n  startAt  DateTime?\n  finishAt DateTime?\n\n  distance Float\n  duration Int\n\n  createdAt DateTime @default(now())\n}\n",
   "runtimeDataModel": {
     "models": {},
     "enums": {},
@@ -28,7 +28,7 @@ const config: runtime.GetPrismaClientConfig = {
   }
 }
 
-config.runtimeDataModel = JSON.parse("{\"models\":{\"User\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"routes\",\"kind\":\"object\",\"type\":\"Route\",\"relationName\":\"RouteToUser\"}],\"dbName\":null},\"Route\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"RouteToUser\"},{\"name\":\"origin\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"destination\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"startLat\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"startLong\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"finishLat\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"finishLong\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"startAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"finishAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"distance\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"duration\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
+config.runtimeDataModel = JSON.parse("{\"models\":{\"User\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"password\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"routes\",\"kind\":\"object\",\"type\":\"Route\",\"relationName\":\"RouteToUser\"},{\"name\":\"refreshTokens\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"RefreshTokenToUser\"}],\"dbName\":null},\"RefreshToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"RefreshTokenToUser\"},{\"name\":\"tokenHash\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null},\"Route\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"RouteToUser\"},{\"name\":\"origin\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"destination\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"startLat\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"startLong\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"finishLat\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"finishLong\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"startAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"finishAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"},{\"name\":\"distance\",\"kind\":\"scalar\",\"type\":\"Float\"},{\"name\":\"duration\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\"}],\"dbName\":null}},\"enums\":{},\"types\":{}}")
 
 async function decodeBase64AsWasm(wasmBase64: string): Promise<WebAssembly.Module> {
   const { Buffer } = await import('node:buffer')
@@ -183,6 +183,16 @@ export interface PrismaClient<
     * ```
     */
   get user(): Prisma.UserDelegate<ExtArgs, { omit: OmitOpts }>;
+
+  /**
+   * `prisma.refreshToken`: Exposes CRUD operations for the **RefreshToken** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more RefreshTokens
+    * const refreshTokens = await prisma.refreshToken.findMany()
+    * ```
+    */
+  get refreshToken(): Prisma.RefreshTokenDelegate<ExtArgs, { omit: OmitOpts }>;
 
   /**
    * `prisma.route`: Exposes CRUD operations for the **Route** model.

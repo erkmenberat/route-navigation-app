@@ -1,5 +1,5 @@
 import { api } from '@/services/api';
-import { deleteAuthToken } from '@/services/auth-token';
+import { deleteAllTokens, getRefreshToken } from '@/services/auth-token';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -37,7 +37,15 @@ export default function ProfileScreen() {
   }, [loadProfile]);
 
   async function logout() {
-    await deleteAuthToken();
+    try {
+      const refreshToken = await getRefreshToken();
+      if (refreshToken) {
+        await api.post('/auth/logout', { refreshToken });
+      }
+    } catch {
+      // Always proceed with local logout, even if the server call fails
+    }
+    await deleteAllTokens();
     router.replace('/login');
   }
 
