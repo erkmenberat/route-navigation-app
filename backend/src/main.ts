@@ -11,7 +11,11 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
   );
 
   const port = Number(process.env.PORT ?? 3000);

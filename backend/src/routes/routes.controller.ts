@@ -6,11 +6,13 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateRouteDto } from './dto/create-route.dto';
+import { GetRoutesQueryDto } from './dto/get-routes-query.dto';
 import { RoutesService } from './routes.service';
 
 @Controller('routes')
@@ -27,8 +29,15 @@ export class RoutesController {
   }
 
   @Get('history')
-  getHistory(@Request() req: { user: { userId: number; username: string } }) {
-    return this.routesService.findAllForUser(req.user.userId);
+  getHistory(
+    @Request() req: { user: { userId: number; username: string } },
+    @Query() query: GetRoutesQueryDto,
+  ) {
+    return this.routesService.findAllForUser(
+      req.user.userId,
+      query.page,
+      query.limit,
+    );
   }
 
   @Delete('history/:id')

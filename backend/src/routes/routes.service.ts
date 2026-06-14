@@ -33,12 +33,31 @@ export class RoutesService {
     }
   }
 
-  async findAllForUser(userId: number) {
+  async findAllForUser(userId: number, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+
     try {
-      return await this.prisma.route.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-      });
+      const [data, total] = await this.prisma.$transaction([
+        this.prisma.route.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.route.count({ where: { userId } }),
+      ]);
+
+      return {
+        data,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page * limit < total,
+          hasPreviousPage: page > 1,
+        },
+      };
     } catch (error) {
       this.throwDatabaseConnectionError(error);
     }

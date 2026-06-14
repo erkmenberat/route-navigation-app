@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,8 @@ import {
   Text,
   View,
 } from 'react-native';
+
+const PAGE_LIMIT = 20;
 
 type RouteHistoryItem = {
   id: number;
@@ -25,6 +27,20 @@ type RouteHistoryItem = {
   distance: number;
   duration: number;
   createdAt: string;
+};
+
+type PaginationMeta = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+type PaginatedResponse = {
+  data: RouteHistoryItem[];
+  meta: PaginationMeta;
 };
 
 function formatDistance(meters: number) {
@@ -47,69 +63,94 @@ function formatDate(value: string) {
 
 export default function HistoryScreen() {
   const [routes, setRoutes] = useState<RouteHistoryItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [deletingRouteId, setDeletingRouteId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  // Prevents duplicate onEndReached calls that fire before state updates settle
+  const isLoadingMoreRef = useRef(false);
 
-  const loadHistory = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
+  const loadHistory = useCallback(async (pageToLoad: number, mode: 'initial' | 'refresh' | 'more' = 'initial') => {
+    if (mode === 'refresh') setIsRefreshing(true);
+    else if (mode === 'more') setIsLoadingMore(true);
+    else setIsLoading(true);
 
     setErrorMessage('');
 
     try {
-      const response = await api.get<RouteHistoryItem[]>('/routes/history');
-      setRoutes(response.data);
+      const response = await api.get<PaginatedResponse>('/routes/history', {
+        params: { page: pageToLoad, limit: PAGE_LIMIT },
+      });
+
+      const { data, meta } = response.data;
+
+      setRoutes((prev) => (mode === 'more' ? [...prev, ...data] : data));
+      setCurrentPage(meta.page);
+      setHasNextPage(meta.hasNextPage);
     } catch (error) {
       console.log(error);
       setErrorMessage('Verlauf konnte nicht geladen werden. Bitte pruefe Backend und Login.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingMore(false);
+      isLoadingMoreRef.current = false;
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void loadHistory();
-    }, [loadHistory])
+      void loadHistory(1, 'initial');
+    }, [loadHistory]),
   );
 
-  const deleteRoute = useCallback(async (routeId: number) => {
-    setDeletingRouteId(routeId);
-    setErrorMessage('');
+  const handleEndReached = useCallback(() => {
+    if (!hasNextPage || isLoadingMoreRef.current || isRefreshing) return;
+    isLoadingMoreRef.current = true;
+    void loadHistory(currentPage + 1, 'more');
+  }, [hasNextPage, isRefreshing, currentPage, loadHistory]);
 
-    try {
-      await api.delete(`/routes/history/${routeId}`);
-      setRoutes((currentRoutes) => currentRoutes.filter((route) => route.id !== routeId));
-    } catch (error) {
-      console.log(error);
-      setErrorMessage('Route konnte nicht geloescht werden.');
-    } finally {
-      setDeletingRouteId(null);
-    }
-  }, []);
+  const deleteRoute = useCallback(
+    async (routeId: number) => {
+      setDeletingRouteId(routeId);
+      setErrorMessage('');
 
-  const confirmDeleteRoute = useCallback((route: RouteHistoryItem) => {
-    Alert.alert(
-      'Route loeschen',
-      `Moechtest du diese Route wirklich loeschen?\n\n${route.destination ?? 'Unbekanntes Ziel'}`,
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Loeschen',
-          style: 'destructive',
-          onPress: () => {
-            void deleteRoute(route.id);
+      try {
+        await api.delete(`/routes/history/${routeId}`);
+        // Reset to page 1 after delete — avoids offset issues with paginated data
+        void loadHistory(1, 'initial');
+      } catch (error) {
+        console.log(error);
+        setErrorMessage('Route konnte nicht geloescht werden.');
+      } finally {
+        setDeletingRouteId(null);
+      }
+    },
+    [loadHistory],
+  );
+
+  const confirmDeleteRoute = useCallback(
+    (route: RouteHistoryItem) => {
+      Alert.alert(
+        'Route loeschen',
+        `Moechtest du diese Route wirklich loeschen?\n\n${route.destination ?? 'Unbekanntes Ziel'}`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Loeschen',
+            style: 'destructive',
+            onPress: () => {
+              void deleteRoute(route.id);
+            },
           },
-        },
-      ]
-    );
-  }, [deleteRoute]);
+        ],
+      );
+    },
+    [deleteRoute],
+  );
 
   if (isLoading) {
     return (
@@ -127,7 +168,7 @@ export default function HistoryScreen() {
       {errorMessage ? (
         <View style={styles.messageCard}>
           <Text style={styles.errorText}>{errorMessage}</Text>
-          <Pressable style={styles.button} onPress={() => loadHistory()}>
+          <Pressable style={styles.button} onPress={() => loadHistory(1, 'initial')}>
             <Text style={styles.buttonText}>Erneut versuchen</Text>
           </Pressable>
         </View>
@@ -141,7 +182,7 @@ export default function HistoryScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             tintColor="#60a5fa"
-            onRefresh={() => loadHistory(true)}
+            onRefresh={() => loadHistory(1, 'refresh')}
           />
         }
         ListEmptyComponent={
@@ -152,6 +193,15 @@ export default function HistoryScreen() {
             </Text>
           </View>
         }
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator color="#60a5fa" size="small" />
+            </View>
+          ) : null
+        }
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.3}
         renderItem={({ item }) => (
           <View style={styles.routeCard}>
             <View style={styles.cardHeader}>
@@ -227,6 +277,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingBottom: 80,
+  },
+  loadingMore: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   messageCard: {
     backgroundColor: '#1e1e1e',
