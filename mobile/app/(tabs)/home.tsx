@@ -382,7 +382,7 @@ export default function HomeScreen() {
   }, [searchQuery, selectedDestination?.place_name]);
 
   useEffect(() => {
-    if (!mapboxToken || !selectedDestination || !currentCoordinate) {
+    if (!mapboxToken || !selectedDestination || !currentCoordinateRef.current) {
       setRouteCoordinates([]);
       setRouteSummary(null);
       setIsRouteLoading(false);
@@ -392,7 +392,7 @@ export default function HomeScreen() {
 
     const abortController = new AbortController();
     const accessToken = mapboxToken;
-    const originCoordinate = currentCoordinate;
+    const originCoordinate = currentCoordinateRef.current;
     const destinationCoordinate = selectedDestination.center;
 
     async function fetchRoute() {
@@ -455,7 +455,7 @@ export default function HomeScreen() {
     return () => {
       abortController.abort();
     };
-  }, [currentCoordinate, selectedDestination, updateDriverCoordinate]);
+  }, [selectedDestination, updateDriverCoordinate]);
 
   function selectDestination(destination: GeocodingFeature) {
     setSelectedDestination(destination);
