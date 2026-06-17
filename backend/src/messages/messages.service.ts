@@ -1,12 +1,22 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { throwIfDatabaseError } from '../common/db-error.helper';
+import { ChatGateway } from '../chat/chat.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { GetMessagesQueryDto } from './dto/get-messages-query.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   async send(userId: number, dto: SendMessageDto) {
     try {
@@ -22,8 +32,8 @@ export class MessagesService {
         throw new ForbiddenException('You are not a member of this chat');
       }
 
-      return await this.prisma.$transaction(async (tx) => {
-        const message = await tx.message.create({
+      const message = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.message.create({
           data: {
             chatId: dto.chatId,
             senderId: userId,
@@ -33,11 +43,15 @@ export class MessagesService {
 
         await tx.chat.update({
           where: { id: dto.chatId },
-          data: { lastMessageId: message.id },
+          data: { lastMessageId: created.id },
         });
 
-        return message;
+        return created;
       });
+
+      await this.chatGateway.pushMessage(dto.chatId, message);
+
+      return message;
     } catch (error) {
       throwIfDatabaseError(error);
     }

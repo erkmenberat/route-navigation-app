@@ -3,12 +3,17 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ChatGateway } from '../chat/chat.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessagesService } from './messages.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
 describe('MessagesService', () => {
   let service: MessagesService;
+
+  const chatGatewayMock = {
+    pushMessage: jest.fn().mockResolvedValue(undefined),
+  };
 
   const prismaMock = {
     chat: {
@@ -26,6 +31,7 @@ describe('MessagesService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    chatGatewayMock.pushMessage.mockResolvedValue(undefined);
 
     prismaMock.$transaction.mockImplementation(
       (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock),
@@ -35,6 +41,7 @@ describe('MessagesService', () => {
       providers: [
         MessagesService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: ChatGateway, useValue: chatGatewayMock },
       ],
     }).compile();
 
@@ -77,6 +84,25 @@ describe('MessagesService', () => {
         where: { id: 1 },
         data: { lastMessageId: 10 },
       });
+    });
+
+    it('calls chatGateway.pushMessage after saving to trigger real-time delivery', async () => {
+      const mockMessage = {
+        id: 10,
+        chatId: 1,
+        senderId: 7,
+        content: dto.content,
+        sentAt: new Date(),
+        deliveredAt: null,
+        readAt: null,
+      };
+      prismaMock.chat.findFirst.mockResolvedValue({ id: 1 });
+      prismaMock.message.create.mockResolvedValue(mockMessage);
+      prismaMock.chat.update.mockResolvedValue({});
+
+      await service.send(7, dto);
+
+      expect(chatGatewayMock.pushMessage).toHaveBeenCalledWith(1, mockMessage);
     });
 
     it('throws ServiceUnavailableException when the database is unreachable', async () => {
