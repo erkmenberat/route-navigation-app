@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SearchUsersQueryDto } from './dto/search-users-query.dto';
 
 @Injectable()
 export class UsersService {
@@ -27,6 +28,21 @@ export class UsersService {
       }
 
       return user;
+    } catch (error) {
+      this.throwDatabaseConnectionError(error);
+    }
+  }
+
+  async searchByName(currentUserId: number, query: SearchUsersQueryDto) {
+    try {
+      return await this.prisma.user.findMany({
+        where: {
+          name: { contains: query.username, mode: 'insensitive' },
+          NOT: { id: currentUserId },
+        },
+        select: { id: true, name: true },
+        take: 10,
+      });
     } catch (error) {
       this.throwDatabaseConnectionError(error);
     }
