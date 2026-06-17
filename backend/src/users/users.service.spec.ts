@@ -9,6 +9,7 @@ describe('UsersService', () => {
   const prismaMock = {
     user: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
   };
 
@@ -59,6 +60,43 @@ describe('UsersService', () => {
       await expect(service.findById(7)).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
+    });
+  });
+
+  describe('searchByName', () => {
+    it('returns matching users excluding the current user', async () => {
+      const users = [{ id: 5, name: 'Bob' }];
+      prismaMock.user.findMany.mockResolvedValue(users);
+
+      const result = await service.searchByName(7, { username: 'Bob' });
+
+      expect(result).toEqual(users);
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        where: {
+          name: { contains: 'Bob', mode: 'insensitive' },
+          NOT: { id: 7 },
+        },
+        select: { id: true, name: true },
+        take: 10,
+      });
+    });
+
+    it('returns an empty array when no users match', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      const result = await service.searchByName(7, { username: 'unknown' });
+
+      expect(result).toEqual([]);
+    });
+
+    it('throws ServiceUnavailableException when the database is unreachable', async () => {
+      prismaMock.user.findMany.mockRejectedValue(
+        new Error('connect ECONNREFUSED'),
+      );
+
+      await expect(
+        service.searchByName(7, { username: 'Bob' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
   });
 });
