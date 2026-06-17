@@ -38,3 +38,5 @@ backend/src/generated/prisma/
 .DS_Store
 Thumbs.db
 roadmap_navigation_project.md
+PROJECT_DOCUMENTATION.md
+chat-system-plan.md
