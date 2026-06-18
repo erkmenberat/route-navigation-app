@@ -1,12 +1,15 @@
 import { api } from '@/services/api';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -29,6 +32,11 @@ type Chat = {
   user1: ChatUser;
   user2: ChatUser;
   messages: ChatMessage[];
+};
+
+type SearchUser = {
+  id: number;
+  name: string;
 };
 
 function formatTime(value: string): string {
@@ -58,36 +66,97 @@ export default function ChatsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const loadChats = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
-      if (mode === 'refresh') setIsRefreshing(true);
-      else setIsLoading(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [creatingForUserId, setCreatingForUserId] = useState<number | null>(null);
 
-      setErrorMessage('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      try {
-        const [chatsResponse, profileResponse] = await Promise.all([
-          api.get<Chat[]>('/chats'),
-          api.get<{ id: number }>('/users/profile'),
-        ]);
+  const loadChats = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'refresh') setIsRefreshing(true);
+    else setIsLoading(true);
 
-        setChats(chatsResponse.data);
-        setCurrentUserId(profileResponse.data.id);
-      } catch {
-        setErrorMessage('Chats konnten nicht geladen werden.');
-      } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [],
-  );
+    setErrorMessage('');
+
+    try {
+      const [chatsResponse, profileResponse] = await Promise.all([
+        api.get<Chat[]>('/chats'),
+        api.get<{ id: number }>('/users/profile'),
+      ]);
+
+      setChats(chatsResponse.data);
+      setCurrentUserId(profileResponse.data.id);
+    } catch {
+      setErrorMessage('Chats konnten nicht geladen werden.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       void loadChats('initial');
     }, [loadChats]),
   );
+
+  const searchUsers = useCallback(async (query: string) => {
+    setIsSearching(true);
+    try {
+      const response = await api.get<SearchUser[]>('/users/search', {
+        params: { username: query },
+      });
+      setSearchResults(response.data);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  function handleSearchChange(text: string) {
+    setSearchQuery(text);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!text.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      void searchUsers(text.trim());
+    }, 300);
+  }
+
+  function clearSearch() {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  }
+
+  async function handleSelectUser(user: SearchUser) {
+    setIsCreatingChat(true);
+    setCreatingForUserId(user.id);
+    try {
+      await api.post('/chats/create-or-get', { userId: user.id });
+      clearSearch();
+      void loadChats('initial');
+    } catch {
+      // silently fail — chat list reload will reflect actual state
+    } finally {
+      setIsCreatingChat(false);
+      setCreatingForUserId(null);
+    }
+  }
+
+  const isSearchActive = searchQuery.trim().length > 0;
 
   if (isLoading) {
     return (
@@ -102,58 +171,115 @@ export default function ChatsScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Chats</Text>
 
-      {errorMessage ? (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        contentContainerStyle={chats.length ? styles.listContent : styles.emptyContent}
-        data={chats}
-        keyExtractor={(item) => item.id.toString()}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            tintColor="#60a5fa"
-            onRefresh={() => loadChats('refresh')}
+      <View style={styles.searchRow}>
+        <View style={styles.searchInputWrapper}>
+          <Ionicons color="#9ca3af" name="search-outline" size={18} style={styles.searchIcon} />
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Benutzer suchen..."
+            placeholderTextColor="#6b7280"
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
           />
-        }
-        ListEmptyComponent={
-          !errorMessage ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Sie haben noch keine Chats</Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => {
-          const otherUser = currentUserId === item.user1.id ? item.user2 : item.user1;
-          const lastMessage = item.messages[0] ?? null;
+          {isSearchActive ? (
+            <Pressable hitSlop={8} onPress={clearSearch}>
+              <Ionicons color="#9ca3af" name="close-circle" size={18} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
 
-          return (
-            <View style={styles.chatRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {otherUser.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.chatInfo}>
-                <View style={styles.chatHeader}>
-                  <Text numberOfLines={1} style={styles.chatName}>
-                    {otherUser.name}
-                  </Text>
-                  {lastMessage ? (
-                    <Text style={styles.chatTime}>{formatTime(lastMessage.sentAt)}</Text>
-                  ) : null}
-                </View>
-                <Text numberOfLines={1} style={styles.lastMessage}>
-                  {lastMessage ? lastMessage.content : 'Noch keine Nachrichten'}
-                </Text>
-              </View>
+      {isSearchActive ? (
+        <View style={styles.searchResults}>
+          {isSearching ? (
+            <View style={styles.searchLoadingRow}>
+              <ActivityIndicator color="#60a5fa" size="small" />
+              <Text style={styles.searchLoadingText}>Suchen...</Text>
             </View>
-          );
-        }}
-      />
+          ) : searchResults.length === 0 ? (
+            <Text style={styles.noResultsText}>Kein Benutzer gefunden</Text>
+          ) : (
+            searchResults.map((user) => (
+              <Pressable
+                key={user.id}
+                disabled={isCreatingChat}
+                style={({ pressed }) => [
+                  styles.searchResultRow,
+                  pressed && styles.searchResultRowPressed,
+                ]}
+                onPress={() => void handleSelectUser(user)}
+              >
+                <View style={styles.searchAvatar}>
+                  <Text style={styles.searchAvatarText}>
+                    {user.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={styles.searchResultName}>{user.name}</Text>
+                {creatingForUserId === user.id ? (
+                  <ActivityIndicator color="#60a5fa" size="small" />
+                ) : null}
+              </Pressable>
+            ))
+          )}
+        </View>
+      ) : (
+        <>
+          {errorMessage ? (
+            <View style={styles.errorCard}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
+          <FlatList
+            contentContainerStyle={chats.length ? styles.listContent : styles.emptyContent}
+            data={chats}
+            keyExtractor={(item) => item.id.toString()}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                tintColor="#60a5fa"
+                onRefresh={() => loadChats('refresh')}
+              />
+            }
+            ListEmptyComponent={
+              !errorMessage ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Sie haben noch keine Chats</Text>
+                </View>
+              ) : null
+            }
+            renderItem={({ item }) => {
+              const otherUser = currentUserId === item.user1.id ? item.user2 : item.user1;
+              const lastMessage = item.messages[0] ?? null;
+
+              return (
+                <View style={styles.chatRow}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                      {otherUser.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.chatInfo}>
+                    <View style={styles.chatHeader}>
+                      <Text numberOfLines={1} style={styles.chatName}>
+                        {otherUser.name}
+                      </Text>
+                      {lastMessage ? (
+                        <Text style={styles.chatTime}>{formatTime(lastMessage.sentAt)}</Text>
+                      ) : null}
+                    </View>
+                    <Text numberOfLines={1} style={styles.lastMessage}>
+                      {lastMessage ? lastMessage.content : 'Noch keine Nachrichten'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -175,13 +301,91 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 30,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 14,
     paddingHorizontal: 20,
   },
   loadingText: {
     color: '#d1d5db',
     fontWeight: '600',
   },
+
+  // Search
+  searchRow: {
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  searchInputWrapper: {
+    alignItems: 'center',
+    backgroundColor: '#1e1e1e',
+    borderColor: '#333',
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  searchIcon: {
+    flexShrink: 0,
+  },
+  searchInput: {
+    color: 'white',
+    flex: 1,
+    fontSize: 15,
+  },
+  searchResults: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  searchLoadingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 16,
+  },
+  searchLoadingText: {
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  noResultsText: {
+    color: '#9ca3af',
+    fontSize: 15,
+    paddingVertical: 16,
+    textAlign: 'center',
+  },
+  searchResultRow: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 10,
+  },
+  searchResultRowPressed: {
+    backgroundColor: '#1e1e1e',
+  },
+  searchAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#1d4ed8',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  searchAvatarText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  searchResultName: {
+    color: 'white',
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // Chat list
   listContent: {
     paddingBottom: 28,
   },
