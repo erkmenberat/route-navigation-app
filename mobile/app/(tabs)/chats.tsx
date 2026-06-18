@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -145,9 +145,10 @@ export default function ChatsScreen() {
     setIsCreatingChat(true);
     setCreatingForUserId(user.id);
     try {
-      await api.post('/chats/create-or-get', { userId: user.id });
+      const response = await api.post<{ id: number }>('/chats/create-or-get', { userId: user.id });
       clearSearch();
       void loadChats('initial');
+      router.push({ pathname: '/chats/[chatId]', params: { chatId: response.data.id, partnerName: user.name } });
     } catch {
       // silently fail — chat list reload will reflect actual state
     } finally {
@@ -255,7 +256,15 @@ export default function ChatsScreen() {
               const lastMessage = item.messages[0] ?? null;
 
               return (
-                <View style={styles.chatRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/chats/[chatId]',
+                      params: { chatId: item.id, partnerName: otherUser.name },
+                    })
+                  }
+                >
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
                       {otherUser.name.charAt(0).toUpperCase()}
@@ -274,7 +283,7 @@ export default function ChatsScreen() {
                       {lastMessage ? lastMessage.content : 'Noch keine Nachrichten'}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -424,6 +433,9 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 20,
     paddingVertical: 14,
+  },
+  chatRowPressed: {
+    backgroundColor: '#1a1a1a',
   },
   avatar: {
     alignItems: 'center',
