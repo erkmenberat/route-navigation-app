@@ -1,4 +1,5 @@
 import { api } from '@/services/api';
+import { useSocketEvent } from '@/hooks/use-socket-event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -37,6 +38,17 @@ type Chat = {
 type SearchUser = {
   id: number;
   name: string;
+};
+
+// Shape emitted by the backend 'message:receive' event (sentAt serialized as ISO string)
+type IncomingMessage = {
+  id: number;
+  chatId: number;
+  senderId: number;
+  content: string;
+  sentAt: string;
+  deliveredAt: string | null;
+  readAt: string | null;
 };
 
 function formatTime(value: string): string {
@@ -156,6 +168,30 @@ export default function ChatsScreen() {
       setCreatingForUserId(null);
     }
   }
+
+  useSocketEvent<IncomingMessage>('message:receive', (message) => {
+    setChats((prev) => {
+      const index = prev.findIndex((c) => c.id === message.chatId);
+
+      if (index === -1) {
+        // Chat not yet in list (e.g. new chat created by the other party) — reload
+        void loadChats('initial');
+        return prev;
+      }
+
+      const preview: ChatMessage = {
+        id: message.id,
+        content: message.content,
+        sentAt: message.sentAt,
+        senderId: message.senderId,
+      };
+
+      const updated: Chat = { ...prev[index], messages: [preview] };
+
+      // Move updated chat to top, keep all others in their relative order
+      return [updated, ...prev.filter((_, i) => i !== index)];
+    });
+  });
 
   const isSearchActive = searchQuery.trim().length > 0;
 

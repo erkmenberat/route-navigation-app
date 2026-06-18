@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import { deleteAllTokens, getRefreshToken } from '@/services/auth-token';
+import { socketService } from '@/services/socket';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -45,6 +46,7 @@ export default function ProfileScreen() {
     } catch {
       // Always proceed with local logout, even if the server call fails
     }
+    socketService.disconnect();
     await deleteAllTokens();
     router.replace('/login');
   }

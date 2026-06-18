@@ -1,11 +1,18 @@
 import { api } from '@/services/api';
+import { useSocketEvent } from '@/hooks/use-socket-event';
+import { socketService } from '@/services/socket';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -39,6 +46,13 @@ function formatMessageTime(value: string): string {
   }).format(date);
 }
 
+const STACK_SCREEN_OPTIONS = {
+  headerStyle: { backgroundColor: '#121212' },
+  headerTintColor: 'white' as const,
+  headerTitleStyle: { color: 'white' },
+  headerBackTitle: '',
+};
+
 export default function ChatDetailScreen() {
   const { chatId, partnerName } = useLocalSearchParams<{
     chatId: string;
@@ -51,6 +65,7 @@ export default function ChatDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [inputText, setInputText] = useState('');
 
   // Prevents duplicate onEndReached triggers before state settles
   const isLoadingMoreRef = useRef(false);
@@ -93,25 +108,40 @@ export default function ChatDetailScreen() {
       setMessages((prev) => [...older, ...prev]);
       setHasMore(older.length === 20);
     } catch {
-      // silently ignore — user can scroll back down and try again
+      // silently ignore — user can scroll back up to try again
     } finally {
       setIsLoadingMore(false);
       isLoadingMoreRef.current = false;
     }
   }, [hasMore, messages, numericChatId]);
 
+  useSocketEvent<Message>('message:receive', (message) => {
+    if (message.chatId !== numericChatId) return;
+
+    setMessages((prev) => {
+      // Guard against duplicate delivery (REST load races with WS push)
+      if (prev.some((m) => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
+  });
+
+  function sendMessage() {
+    const content = inputText.trim();
+    if (!content) return;
+
+    const socket = socketService.getSocket();
+    if (!socket?.connected) return;
+
+    // Fire-and-forget — backend emits message:receive back to the room,
+    // which the useSocketEvent handler picks up and appends to the list
+    socket.emit('message:send', { chatId: numericChatId, content });
+    setInputText('');
+  }
+
   if (isLoading) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            title: partnerName ?? 'Chat',
-            headerStyle: { backgroundColor: '#121212' },
-            headerTintColor: 'white',
-            headerTitleStyle: { color: 'white' },
-            headerBackTitle: '',
-          }}
-        />
+        <Stack.Screen options={{ ...STACK_SCREEN_OPTIONS, title: partnerName ?? 'Chat' }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color="#60a5fa" />
         </View>
@@ -121,17 +151,11 @@ export default function ChatDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: partnerName ?? 'Chat',
-          headerStyle: { backgroundColor: '#121212' },
-          headerTintColor: 'white',
-          headerTitleStyle: { color: 'white' },
-          headerBackTitle: '',
-        }}
-      />
-      <View style={styles.container}>
-        {/* inverted={true}: index 0 shown at bottom → pass newest-first so newest is at bottom */}
+      <Stack.Screen options={{ ...STACK_SCREEN_OPTIONS, title: partnerName ?? 'Chat' }} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
         <FlatList
           inverted
           contentContainerStyle={styles.listContent}
@@ -146,7 +170,6 @@ export default function ChatDetailScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              {/* inverted list: this shows at the visual bottom */}
               <Text style={styles.emptyText}>Noch keine Nachrichten</Text>
             </View>
           }
@@ -166,7 +189,27 @@ export default function ChatDetailScreen() {
             );
           }}
         />
-      </View>
+
+        <View style={styles.inputBar}>
+          <TextInput
+            multiline
+            maxLength={1000}
+            placeholder="Nachricht schreiben..."
+            placeholderTextColor="#6b7280"
+            scrollEnabled
+            style={styles.input}
+            value={inputText}
+            onChangeText={setInputText}
+          />
+          <Pressable
+            disabled={!inputText.trim()}
+            style={[styles.sendButton, !inputText.trim() ? styles.sendButtonDisabled : null]}
+            onPress={sendMessage}
+          >
+            <Ionicons color="white" name="send" size={20} />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </>
   );
 }
@@ -241,5 +284,41 @@ const styles = StyleSheet.create({
   bubbleTimeOther: {
     color: '#6b7280',
     textAlign: 'left',
+  },
+
+  // Input bar
+  inputBar: {
+    alignItems: 'flex-end',
+    backgroundColor: '#0e0e0e',
+    borderTopColor: '#1e1e1e',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  input: {
+    backgroundColor: '#1e1e1e',
+    borderColor: '#333',
+    borderRadius: 20,
+    borderWidth: 1,
+    color: 'white',
+    flex: 1,
+    fontSize: 15,
+    maxHeight: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  sendButton: {
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    borderRadius: 22,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#1e3a5f',
   },
 });

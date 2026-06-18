@@ -1,4 +1,5 @@
 import { getAuthToken } from '@/services/auth-token';
+import { socketService } from '@/services/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -15,7 +16,12 @@ export default function TabsLayout() {
       const token = await getAuthToken();
 
       if (isMounted) {
-        setAuthState(token ? 'authenticated' : 'unauthenticated');
+        if (token) {
+          socketService.connect(token);
+          setAuthState('authenticated');
+        } else {
+          setAuthState('unauthenticated');
+        }
       }
     }
 
