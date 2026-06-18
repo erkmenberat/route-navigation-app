@@ -26,7 +26,7 @@ interface PushedMessage {
 @WebSocketGateway({ cors: true })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   constructor(
     private readonly prisma: PrismaService,
