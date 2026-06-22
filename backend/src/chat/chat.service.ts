@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { throwIfDatabaseError } from '../common/db-error.helper';
+import { ChatGateway } from './chat.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrGetChatDto } from './dto/create-or-get-chat.dto';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   async createOrGet(currentUserId: number, dto: CreateOrGetChatDto) {
     if (currentUserId === dto.userId) {
@@ -36,9 +40,13 @@ export class ChatService {
 
       if (existing) return existing;
 
-      return await this.prisma.chat.create({
+      const chat = await this.prisma.chat.create({
         data: { user1Id, user2Id },
       });
+
+      this.chatGateway.joinUsersToRoom(user1Id, user2Id, chat.id);
+
+      return chat;
     } catch (error) {
       throwIfDatabaseError(error);
     }

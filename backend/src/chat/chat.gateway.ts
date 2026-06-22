@@ -160,6 +160,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await client.join(`chat:${chatId}`);
   }
 
+  joinUsersToRoom(user1Id: number, user2Id: number, chatId: number): void {
+    this.server.in(`user:${user1Id}`).socketsJoin(`chat:${chatId}`);
+    this.server.in(`user:${user2Id}`).socketsJoin(`chat:${chatId}`);
+  }
+
   private async broadcastUserStatus(
     userId: number,
     isOnline: boolean,

@@ -29,6 +29,7 @@ export default function TabsLayout() {
 
     return () => {
       isMounted = false;
+      console.log("socket ist nicht connected.")
     };
   }, []);
 

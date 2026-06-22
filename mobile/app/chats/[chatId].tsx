@@ -1,6 +1,5 @@
 import { api } from '@/services/api';
 import { useSocketEvent } from '@/hooks/use-socket-event';
-import { socketService } from '@/services/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -66,6 +65,7 @@ export default function ChatDetailScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   // Prevents duplicate onEndReached triggers before state settles
   const isLoadingMoreRef = useRef(false);
@@ -125,17 +125,23 @@ export default function ChatDetailScreen() {
     });
   });
 
-  function sendMessage() {
+  async function sendMessage(): Promise<void> {
     const content = inputText.trim();
-    if (!content) return;
+    if (!content || isSending) return;
 
-    const socket = socketService.getSocket();
-    if (!socket?.connected) return;
-
-    // Fire-and-forget — backend emits message:receive back to the room,
-    // which the useSocketEvent handler picks up and appends to the list
-    socket.emit('message:send', { chatId: numericChatId, content });
-    setInputText('');
+    setIsSending(true);
+    try {
+      const response = await api.post<Message>('/messages/send', { chatId: numericChatId, content });
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === response.data.id)) return prev;
+        return [...prev, response.data];
+      });
+      setInputText('');
+    } catch {
+      // silent — user sees their input still in the box and can retry
+    } finally {
+      setIsSending(false);
+    }
   }
 
   if (isLoading) {
@@ -202,8 +208,8 @@ export default function ChatDetailScreen() {
             onChangeText={setInputText}
           />
           <Pressable
-            disabled={!inputText.trim()}
-            style={[styles.sendButton, !inputText.trim() ? styles.sendButtonDisabled : null]}
+            disabled={!inputText.trim() || isSending}
+            style={[styles.sendButton, (!inputText.trim() || isSending) ? styles.sendButtonDisabled : null]}
             onPress={sendMessage}
           >
             <Ionicons color="white" name="send" size={20} />

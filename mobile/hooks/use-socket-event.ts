@@ -22,8 +22,18 @@ export function useSocketEvent<T>(event: string, handler: (data: T) => void): vo
     }
 
     socket.on(event, stableHandler);
+
+    function onReconnect() {
+      if (!socket) return;
+      socket.off(event, stableHandler);
+      socket.on(event, stableHandler);
+    }
+
+    socket.on('connect', onReconnect);
+
     return () => {
       socket.off(event, stableHandler);
+      socket.off('connect', onReconnect);
     };
     // event is a constant string per call-site — intentionally omit handlerRef from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
