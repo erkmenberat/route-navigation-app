@@ -18,6 +18,7 @@ export default function TabsLayout() {
       if (isMounted) {
         if (token) {
           socketService.connect(token);
+          console.log("Websocket ist connected!");
           setAuthState('authenticated');
         } else {
           setAuthState('unauthenticated');
@@ -34,10 +35,12 @@ export default function TabsLayout() {
   }, []);
 
   if (authState === 'checking') {
+    console.log("checking auth state.");
     return null;
   }
 
   if (authState === 'unauthenticated') {
+    console.log("unauthenticated");
     return <Redirect href="/login" />;
   }
 

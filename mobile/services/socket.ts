@@ -3,14 +3,12 @@ import { io, Socket } from 'socket.io-client';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4001';
 
 let socket: Socket | null = null;
+const subscribers = new Set<(s: Socket) => void>();
 
 export const socketService = {
   connect(token: string): void {
-    // Already connected with a live socket — nothing to do
-    if (socket?.connected) return;
+    if (socket?.connected || socket?.active) return;
 
-    // If a socket exists but is disconnected (e.g. network drop before explicit logout),
-    // clean it up before creating a fresh one
     if (socket) {
       socket.removeAllListeners();
       socket.disconnect();
@@ -21,9 +19,12 @@ export const socketService = {
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       transports: ['websocket'],
     });
+
+    const created = socket;
+    subscribers.forEach((cb) => cb(created));
   },
 
   disconnect(): void {
@@ -36,5 +37,15 @@ export const socketService = {
 
   getSocket(): Socket | null {
     return socket;
+  },
+
+  // Calls cb immediately if a socket exists, and again whenever a new socket
+  // is created. Returns an unsubscribe function.
+  onSocket(cb: (s: Socket) => void): () => void {
+    subscribers.add(cb);
+    if (socket !== null) cb(socket);
+    return () => {
+      subscribers.delete(cb);
+    };
   },
 };

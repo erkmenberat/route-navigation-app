@@ -1,41 +1,49 @@
 import { socketService } from '@/services/socket';
 import { useEffect, useRef } from 'react';
+import type { Socket } from 'socket.io-client';
 
-/**
- * Subscribes to a Socket.IO event for the lifetime of the component.
- *
- * Uses a ref for the handler so the latest closure is always called
- * without needing to re-register the listener on every render.
- * The listener is removed on unmount.
- */
 export function useSocketEvent<T>(event: string, handler: (data: T) => void): void {
   const handlerRef = useRef(handler);
-  // Always keep ref pointing to the latest handler (runs synchronously on every render)
   handlerRef.current = handler;
 
   useEffect(() => {
-    const socket = socketService.getSocket();
-    if (!socket) return;
+    let activeSocket: Socket | null = null;
+    let activeReconnectHandler: (() => void) | null = null;
 
     function stableHandler(data: T) {
       handlerRef.current(data);
     }
 
-    socket.on(event, stableHandler);
+    function register(s: Socket): void {
+      if (activeSocket === s) return;
 
-    function onReconnect() {
-      if (!socket) return;
-      socket.off(event, stableHandler);
-      socket.on(event, stableHandler);
+      if (activeSocket) {
+        activeSocket.off(event, stableHandler);
+        if (activeReconnectHandler) activeSocket.off('connect', activeReconnectHandler);
+      }
+
+      activeSocket = s;
+
+      function onReconnect() {
+        s.off(event, stableHandler);
+        s.on(event, stableHandler);
+      }
+
+      activeReconnectHandler = onReconnect;
+      s.on(event, stableHandler);
+      s.on('connect', onReconnect);
     }
 
-    socket.on('connect', onReconnect);
+    // register is called immediately if a socket exists, or once connect() creates one
+    const unsubscribe = socketService.onSocket(register);
 
     return () => {
-      socket.off(event, stableHandler);
-      socket.off('connect', onReconnect);
+      unsubscribe();
+      if (activeSocket) {
+        activeSocket.off(event, stableHandler);
+        if (activeReconnectHandler) activeSocket.off('connect', activeReconnectHandler);
+      }
     };
-    // event is a constant string per call-site — intentionally omit handlerRef from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event]);
 }
