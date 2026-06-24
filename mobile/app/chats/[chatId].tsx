@@ -26,12 +26,14 @@ type Message = {
   readAt: string | null;
 };
 
-type MessageStatus = 'sending' | 'sent' | 'received';
+type MessageStatus = 'sending' | 'sent' | 'received' | 'read';
 type LocalMessage = Message & { status: MessageStatus };
 
 function toLocalMessage(msg: Message, myId: number): LocalMessage {
   if (msg.senderId !== myId) return { ...msg, status: 'received' };
-  return { ...msg, status: msg.deliveredAt !== null ? 'received' : 'sent' };
+  if (msg.readAt !== null) return { ...msg, status: 'read' };
+  if (msg.deliveredAt !== null) return { ...msg, status: 'received' };
+  return { ...msg, status: 'sent' };
 }
 
 function formatMessageTime(value: string): string {
@@ -78,6 +80,8 @@ export default function ChatDetailScreen() {
 
   // Prevents duplicate onEndReached triggers before state settles
   const isLoadingMoreRef = useRef(false);
+  // Tracks message:delivered events that arrived before REST response (race condition)
+  const deliveredIdsRef = useRef<Set<number>>(new Set());
 
   const loadInitial = useCallback(async () => {
     setIsLoading(true);
@@ -92,6 +96,7 @@ export default function ChatDetailScreen() {
       setCurrentUserId(myId);
       // Backend returns max 20 per page — if we got 20, there may be more
       setHasMore(messagesResponse.data.length === 20);
+      socketService.getSocket()?.emit('message:read', { chatId: numericChatId });
     } catch {
       // keep empty state; user can navigate back
     } finally {
@@ -141,6 +146,7 @@ export default function ChatDetailScreen() {
     if (message.senderId !== currentUserId) {
       console.log(`[chat:${numericChatId}] emitting message:ack for messageId=${message.id}`);
       socketService.getSocket()?.emit('message:ack', { messageId: message.id });
+      socketService.getSocket()?.emit('message:read', { chatId: message.chatId });
     }
   });
 
@@ -148,9 +154,23 @@ export default function ChatDetailScreen() {
     'message:delivered',
     ({ messageIds }) => {
       console.log(`[chat:${numericChatId}] message:delivered ids=[${messageIds.join(',')}] → status=received`);
+      messageIds.forEach((id) => deliveredIdsRef.current.add(id));
       setMessages((prev) =>
         prev.map((m) =>
           messageIds.includes(m.id) ? { ...m, status: 'received' as MessageStatus } : m,
+        ),
+      );
+    },
+  );
+
+  useSocketEvent<{ chatId: number; readBy: number; readAt: string }>(
+    'message:read',
+    ({ chatId, readBy }) => {
+      if (chatId !== numericChatId || readBy === currentUserId) return;
+      console.log(`[chat:${numericChatId}] message:read by userId=${readBy} → status=read`);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.senderId === currentUserId ? { ...m, status: 'read' as MessageStatus } : m,
         ),
       );
     },
@@ -185,9 +205,16 @@ export default function ChatDetailScreen() {
           console.log(`[chat:${numericChatId}] WS was faster — removing tempId=${tempId}`);
           return prev
             .filter((m) => m.id !== tempId)
-            .map((m) => m.id === response.data.id ? { ...m, status: 'sent' as MessageStatus } : m);
+            .map((m) => {
+              if (m.id !== response.data.id) return m;
+              // Don't downgrade a status that already advanced (e.g. delivered while WS was in flight)
+              if (m.status === 'received' || m.status === 'read') return m;
+              return { ...m, status: 'sent' as MessageStatus };
+            });
         }
-        return prev.map((m) => m.id === tempId ? { ...response.data, status: 'sent' as MessageStatus } : m);
+        // message:delivered may have arrived before this REST response (race condition)
+        const status: MessageStatus = deliveredIdsRef.current.has(response.data.id) ? 'received' : 'sent';
+        return prev.map((m) => m.id === tempId ? { ...response.data, status } : m);
       });
       setInputText('');
     } catch {
@@ -249,7 +276,8 @@ export default function ChatDetailScreen() {
                     <>
                       {item.status === 'sending' && <Ionicons name="time-outline" size={14} color="#93c5fd" />}
                       {item.status === 'sent' && <Ionicons name="checkmark" size={14} color="#93c5fd" />}
-                      {item.status === 'received' && <Ionicons name="checkmark-done-outline" size={14} color="rgb(57, 233, 227)" />}
+                      {item.status === 'received' && <Ionicons name="checkmark-done-outline" size={14} color="#93c5fd" />}
+                      {item.status === 'read' && <Ionicons name="checkmark-done-outline" size={14} color="rgb(57, 233, 227)" />}
                     </>
                   )}
                 </View>
