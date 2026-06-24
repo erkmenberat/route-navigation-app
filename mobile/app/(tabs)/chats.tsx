@@ -1,4 +1,5 @@
 import { api } from '@/services/api';
+import { socketService } from '@/services/socket';
 import { useSocketEvent } from '@/hooks/use-socket-event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -170,6 +171,8 @@ export default function ChatsScreen() {
   }
 
   useSocketEvent<IncomingMessage>('message:receive', (message) => {
+    socketService.getSocket()?.emit('message:ack', { messageId: message.id });
+
     setChats((prev) => {
       const index = prev.findIndex((c) => c.id === message.chatId);
 

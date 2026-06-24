@@ -2,7 +2,8 @@ import { getAuthToken } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 
 type AuthState = 'checking' | 'authenticated' | 'unauthenticated';
 
@@ -33,6 +34,44 @@ export default function TabsLayout() {
       console.log("socket ist nicht connected.")
     };
   }, []);
+
+  const prevAppState = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    if (authState !== 'authenticated') return;
+
+    async function handleAppStateChange(next: AppStateStatus) {
+      const prev = prevAppState.current;
+      prevAppState.current = next;
+
+      const goingToBackground =
+        prev === 'active' && (next === 'inactive' || next === 'background');
+      const comingToForeground =
+        (prev === 'inactive' || prev === 'background') && next === 'active';
+
+      if (goingToBackground) {
+        const sock = socketService.getSocket();
+        if (sock?.connected) {
+          console.log('[AppState] background → pause socket');
+          sock.disconnect();
+        }
+      } else if (comingToForeground) {
+        console.log('[AppState] foreground → resume socket');
+        const token = await getAuthToken();
+        if (!token) return;
+        const sock = socketService.getSocket();
+        if (sock) {
+          sock.auth = { token };
+          sock.connect();
+        } else {
+          socketService.connect(token);
+        }
+      }
+    }
+
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, [authState]);
 
   if (authState === 'checking') {
     console.log("checking auth state.");

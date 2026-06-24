@@ -1,4 +1,5 @@
 import { api } from '@/services/api';
+import { socketService } from '@/services/socket';
 import { useSocketEvent } from '@/hooks/use-socket-event';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -24,6 +25,14 @@ type Message = {
   deliveredAt: string | null;
   readAt: string | null;
 };
+
+type MessageStatus = 'sending' | 'sent' | 'received';
+type LocalMessage = Message & { status: MessageStatus };
+
+function toLocalMessage(msg: Message, myId: number): LocalMessage {
+  if (msg.senderId !== myId) return { ...msg, status: 'received' };
+  return { ...msg, status: msg.deliveredAt !== null ? 'received' : 'sent' };
+}
 
 function formatMessageTime(value: string): string {
   const date = new Date(value);
@@ -59,7 +68,7 @@ export default function ChatDetailScreen() {
   }>();
   const numericChatId = Number(chatId);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -78,8 +87,9 @@ export default function ChatDetailScreen() {
         api.get<{ id: number }>('/users/profile'),
       ]);
 
-      setMessages(messagesResponse.data);
-      setCurrentUserId(profileResponse.data.id);
+      const myId = profileResponse.data.id;
+      setMessages(messagesResponse.data.map((m) => toLocalMessage(m, myId)));
+      setCurrentUserId(myId);
       // Backend returns max 20 per page — if we got 20, there may be more
       setHasMore(messagesResponse.data.length === 20);
     } catch {
@@ -105,7 +115,7 @@ export default function ChatDetailScreen() {
       });
 
       const older = response.data;
-      setMessages((prev) => [...older, ...prev]);
+      setMessages((prev) => [...older.map((m) => toLocalMessage(m, currentUserId!)), ...prev]);
       setHasMore(older.length === 20);
     } catch {
       // silently ignore — user can scroll back up to try again
@@ -113,32 +123,77 @@ export default function ChatDetailScreen() {
       setIsLoadingMore(false);
       isLoadingMoreRef.current = false;
     }
-  }, [hasMore, messages, numericChatId]);
+  }, [hasMore, messages, numericChatId, currentUserId]);
 
   useSocketEvent<Message>('message:receive', (message) => {
     if (message.chatId !== numericChatId) return;
 
+    console.log(`[chat:${numericChatId}] message:receive id=${message.id} from senderId=${message.senderId}`);
+
     setMessages((prev) => {
       // Guard against duplicate delivery (REST load races with WS push)
       if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, message];
+      // Own messages echoed back via WS are 'sent', not 'received'
+      const status: MessageStatus = message.senderId === currentUserId ? 'sent' : 'received';
+      return [...prev, { ...message, status }];
     });
+
+    if (message.senderId !== currentUserId) {
+      console.log(`[chat:${numericChatId}] emitting message:ack for messageId=${message.id}`);
+      socketService.getSocket()?.emit('message:ack', { messageId: message.id });
+    }
   });
+
+  useSocketEvent<{ messageIds: number[]; deliveredAt: string }>(
+    'message:delivered',
+    ({ messageIds }) => {
+      console.log(`[chat:${numericChatId}] message:delivered ids=[${messageIds.join(',')}] → status=received`);
+      setMessages((prev) =>
+        prev.map((m) =>
+          messageIds.includes(m.id) ? { ...m, status: 'received' as MessageStatus } : m,
+        ),
+      );
+    },
+  );
 
   async function sendMessage(): Promise<void> {
     const content = inputText.trim();
     if (!content || isSending) return;
 
+    const tempId = -Date.now();
+    const optimistic: LocalMessage = {
+      id: tempId,
+      chatId: numericChatId,
+      senderId: currentUserId!,
+      content,
+      sentAt: new Date().toISOString(),
+      deliveredAt: null,
+      readAt: null,
+      status: 'sending',
+    };
+
+    console.log(`[chat:${numericChatId}] sending message tempId=${tempId}`);
     setIsSending(true);
+    setMessages((prev) => [...prev, optimistic]);
+
     try {
       const response = await api.post<Message>('/messages/send', { chatId: numericChatId, content });
+      console.log(`[chat:${numericChatId}] message sent → server id=${response.data.id} (tempId=${tempId})`);
       setMessages((prev) => {
-        if (prev.some((m) => m.id === response.data.id)) return prev;
-        return [...prev, response.data];
+        // WS was faster — real message already in list, correct its status and remove temp
+        if (prev.some((m) => m.id === response.data.id)) {
+          console.log(`[chat:${numericChatId}] WS was faster — removing tempId=${tempId}`);
+          return prev
+            .filter((m) => m.id !== tempId)
+            .map((m) => m.id === response.data.id ? { ...m, status: 'sent' as MessageStatus } : m);
+        }
+        return prev.map((m) => m.id === tempId ? { ...response.data, status: 'sent' as MessageStatus } : m);
       });
       setInputText('');
     } catch {
-      // silent — user sees their input still in the box and can retry
+      console.log(`[chat:${numericChatId}] send failed — removing tempId=${tempId}`);
+      // Remove optimistic message — input stays so user can retry
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setIsSending(false);
     }
@@ -190,6 +245,13 @@ export default function ChatDetailScreen() {
                   <Text style={[styles.bubbleTime, isOwn ? styles.bubbleTimeOwn : styles.bubbleTimeOther]}>
                     {formatMessageTime(item.sentAt)}
                   </Text>
+                  {isOwn && (
+                    <>
+                      {item.status === 'sending' && <Ionicons name="time-outline" size={14} color="#93c5fd" />}
+                      {item.status === 'sent' && <Ionicons name="checkmark" size={14} color="#93c5fd" />}
+                      {item.status === 'received' && <Ionicons name="checkmark-done-outline" size={14} color="rgb(57, 233, 227)" />}
+                    </>
+                  )}
                 </View>
               </View>
             );

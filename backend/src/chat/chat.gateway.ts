@@ -1,4 +1,4 @@
-import { forwardRef, Inject, UseGuards } from '@nestjs/common';
+import { forwardRef, Inject, Logger, UseGuards } from '@nestjs/common';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -28,6 +28,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
 
+  private readonly logger = new Logger(ChatGateway.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -39,6 +41,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const token = client.handshake.auth?.token as string | undefined;
       if (!token) {
+        this.logger.warn(`[connect] socket=${client.id} rejected — no token`);
         client.disconnect();
         return;
       }
@@ -62,9 +65,45 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data: { isOnline: true },
       });
 
+      const chatIds = chats.map((c) => c.id);
+      this.logger.log(
+        `[connect] userId=${payload.sub} socket=${client.id} joined rooms: user:${payload.sub}, chats=[${chatIds.join(',')}]`,
+      );
+
+      if (chatIds.length > 0) {
+        const undelivered = await this.prisma.message.findMany({
+          where: {
+            chatId: { in: chatIds },
+            senderId: { not: payload.sub },
+            deliveredAt: null,
+          },
+          orderBy: { sentAt: 'asc' },
+          select: {
+            id: true,
+            chatId: true,
+            senderId: true,
+            content: true,
+            sentAt: true,
+            deliveredAt: true,
+            readAt: true,
+          },
+        });
+
+        if (undelivered.length > 0) {
+          this.logger.log(
+            `[connect] pushing ${undelivered.length} undelivered message(s) to userId=${payload.sub}`,
+          );
+          for (const message of undelivered) {
+            client.emit('message:receive', message);
+          }
+        }
+      }
+
       await this.broadcastUserStatus(payload.sub, true);
-      await this.deliverPendingMessages(payload.sub, client);
     } catch {
+      this.logger.warn(
+        `[connect] socket=${client.id} rejected — invalid token`,
+      );
       client.disconnect();
     }
   }
@@ -72,6 +111,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleDisconnect(client: Socket): Promise<void> {
     const userId = client.data?.userId as number | undefined;
     if (!userId) return;
+
+    this.logger.log(`[disconnect] userId=${userId} socket=${client.id}`);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -89,6 +130,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<void> {
     try {
       const userId = client.data.userId as number;
+      this.logger.log(
+        `[message:send] userId=${userId} → chatId=${payload.chatId}`,
+      );
       await this.messagesService.send(userId, {
         chatId: payload.chatId,
         content: payload.content,
@@ -105,6 +149,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     payload: { chatId: number },
   ): Promise<void> {
     const userId = client.data.userId as number;
+    this.logger.log(`[message:read] userId=${userId} chatId=${payload.chatId}`);
     const now = new Date();
 
     await this.prisma.message.updateMany({
@@ -124,43 +169,63 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   async pushMessage(chatId: number, message: PushedMessage): Promise<void> {
+    this.logger.log(
+      `[push] messageId=${message.id} → chat:${chatId} (sender=${message.senderId})`,
+    );
     this.server.to(`chat:${chatId}`).emit('message:receive', message);
+  }
 
-    const chat = await this.prisma.chat.findUnique({
-      where: { id: chatId },
-      select: { user1Id: true, user2Id: true },
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('message:ack')
+  async handleMessageAck(
+    client: Socket,
+    payload: { messageId: number },
+  ): Promise<void> {
+    const userId = client.data.userId as number;
+    this.logger.log(
+      `[message:ack] userId=${userId} acks messageId=${payload.messageId}`,
+    );
+    const now = new Date();
+
+    const message = await this.prisma.message.findFirst({
+      where: {
+        id: payload.messageId,
+        senderId: { not: userId },
+        deliveredAt: null,
+      },
     });
 
-    if (!chat) return;
-
-    const recipientId =
-      chat.user1Id === message.senderId ? chat.user2Id : chat.user1Id;
-
-    const recipient = await this.prisma.user.findUnique({
-      where: { id: recipientId },
-      select: { isOnline: true },
-    });
-
-    if (recipient?.isOnline) {
-      const now = new Date();
-
-      await this.prisma.message.update({
-        where: { id: message.id },
-        data: { deliveredAt: now },
-      });
-
-      this.server.to(`user:${message.senderId}`).emit('message:delivered', {
-        messageIds: [message.id],
-        deliveredAt: now,
-      });
+    if (!message) {
+      this.logger.debug(
+        `[message:ack] messageId=${payload.messageId} skipped — already delivered or not found`,
+      );
+      return;
     }
+
+    await this.prisma.message.update({
+      where: { id: message.id },
+      data: { deliveredAt: now },
+    });
+
+    this.logger.log(
+      `[message:ack] messageId=${message.id} marked delivered → notifying sender userId=${message.senderId}`,
+    );
+
+    this.server.to(`user:${message.senderId}`).emit('message:delivered', {
+      messageIds: [message.id],
+      deliveredAt: now,
+    });
   }
 
   async joinChatRoom(client: Socket, chatId: number): Promise<void> {
+    this.logger.log(`[joinChatRoom] socket=${client.id} → chat:${chatId}`);
     await client.join(`chat:${chatId}`);
   }
 
   joinUsersToRoom(user1Id: number, user2Id: number, chatId: number): void {
+    this.logger.log(
+      `[joinUsersToRoom] chatId=${chatId} users=[${user1Id},${user2Id}]`,
+    );
     this.server.in(`user:${user1Id}`).socketsJoin(`chat:${chatId}`);
     this.server.in(`user:${user2Id}`).socketsJoin(`chat:${chatId}`);
   }
@@ -174,52 +239,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       select: { id: true },
     });
 
+    this.logger.log(
+      `[user:status] userId=${userId} isOnline=${isOnline} → broadcasting to ${chats.length} chat(s)`,
+    );
+
     for (const chat of chats) {
       this.server.to(`chat:${chat.id}`).emit('user:status', {
         userId,
         isOnline,
-      });
-    }
-  }
-
-  private async deliverPendingMessages(
-    userId: number,
-    client: Socket,
-  ): Promise<void> {
-    const chats = await this.prisma.chat.findMany({
-      where: { OR: [{ user1Id: userId }, { user2Id: userId }] },
-      select: { id: true },
-    });
-
-    const chatIds = chats.map((c) => c.id);
-    if (chatIds.length === 0) return;
-
-    const undelivered = await this.prisma.message.findMany({
-      where: {
-        chatId: { in: chatIds },
-        senderId: { not: userId },
-        deliveredAt: null,
-      },
-    });
-
-    if (undelivered.length === 0) return;
-
-    const now = new Date();
-
-    await this.prisma.message.updateMany({
-      where: { id: { in: undelivered.map((m) => m.id) } },
-      data: { deliveredAt: now },
-    });
-
-    client.emit('message:delivered', {
-      messageIds: undelivered.map((m) => m.id),
-      deliveredAt: now,
-    });
-
-    for (const message of undelivered) {
-      this.server.to(`user:${message.senderId}`).emit('message:delivered', {
-        messageIds: [message.id],
-        deliveredAt: now,
       });
     }
   }
