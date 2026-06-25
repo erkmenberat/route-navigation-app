@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import { socketService } from '@/services/socket';
+import { encryptMessage, decryptMessage } from '@/services/crypto';
 import { useSocketEvent } from '@/hooks/use-socket-event';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -30,10 +31,13 @@ type MessageStatus = 'sending' | 'sent' | 'received' | 'read';
 type LocalMessage = Message & { status: MessageStatus };
 
 function toLocalMessage(msg: Message, myId: number): LocalMessage {
-  if (msg.senderId !== myId) return { ...msg, status: 'received' };
-  if (msg.readAt !== null) return { ...msg, status: 'read' };
-  if (msg.deliveredAt !== null) return { ...msg, status: 'received' };
-  return { ...msg, status: 'sent' };
+  const decrypted = decryptMessage(msg.content);
+  const base = {...msg, content: decrypted };
+
+  if (msg.senderId !== myId) return { ...base, status: 'received' };
+  if (msg.readAt !== null) return { ...base, status: 'read' };
+  if (msg.deliveredAt !== null) return { ...base, status: 'received' };
+  return { ...base, status: 'sent' };
 }
 
 function formatMessageTime(value: string): string {
@@ -91,6 +95,8 @@ export default function ChatDetailScreen() {
         api.get<{ id: number }>('/users/profile'),
       ]);
 
+      //Hier werden die geladene Nachrichten bevor sie geladen werden decrypted. via decryptMessage()
+
       const myId = profileResponse.data.id;
       setMessages(messagesResponse.data.map((m) => toLocalMessage(m, myId)));
       setCurrentUserId(myId);
@@ -140,7 +146,7 @@ export default function ChatDetailScreen() {
       if (prev.some((m) => m.id === message.id)) return prev;
       // Own messages echoed back via WS are 'sent', not 'received'
       const status: MessageStatus = message.senderId === currentUserId ? 'sent' : 'received';
-      return [...prev, { ...message, status }];
+      return [...prev, { ...message, content: decryptMessage(message.content), status }];
     });
 
     if (message.senderId !== currentUserId) {
@@ -197,7 +203,7 @@ export default function ChatDetailScreen() {
     setMessages((prev) => [...prev, optimistic]);
 
     try {
-      const response = await api.post<Message>('/messages/send', { chatId: numericChatId, content });
+      const response = await api.post<Message>('/messages/send', { chatId: numericChatId, content: encryptMessage(content) });
       console.log(`[chat:${numericChatId}] message sent → server id=${response.data.id} (tempId=${tempId})`);
       setMessages((prev) => {
         // WS was faster — real message already in list, correct its status and remove temp
@@ -214,11 +220,11 @@ export default function ChatDetailScreen() {
         }
         // message:delivered may have arrived before this REST response (race condition)
         const status: MessageStatus = deliveredIdsRef.current.has(response.data.id) ? 'received' : 'sent';
-        return prev.map((m) => m.id === tempId ? { ...response.data, status } : m);
+        return prev.map((m) => m.id === tempId ? { ...response.data, content: decryptMessage(response.data.content), status } : m);
       });
       setInputText('');
-    } catch {
-      console.log(`[chat:${numericChatId}] send failed — removing tempId=${tempId}`);
+    } catch (err) {
+      console.log(`[chat:${numericChatId}] send failed — removing tempId=${tempId}`, err);
       // Remove optimistic message — input stays so user can retry
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {

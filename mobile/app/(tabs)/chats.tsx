@@ -1,4 +1,5 @@
 import { api } from '@/services/api';
+import { decryptMessage } from '@/services/crypto';
 import { socketService } from '@/services/socket';
 import { useSocketEvent } from '@/hooks/use-socket-event';
 import { Ionicons } from '@expo/vector-icons';
@@ -127,7 +128,12 @@ export default function ChatsScreen() {
           updatedAt: c.updatedAt,
         })),
       );
-      setChats(chatsResponse.data);
+      setChats(
+        chatsResponse.data.map((chat) => ({
+          ...chat,
+          messages: chat.messages.map((m) => ({ ...m, content: decryptMessage(m.content) })),
+        })),
+      );
       setCurrentUserId(profileResponse.data.id);
     } catch {
       setErrorMessage('Chats konnten nicht geladen werden.');
@@ -215,7 +221,7 @@ export default function ChatsScreen() {
 
       const preview: ChatMessage = {
         id: message.id,
-        content: message.content,
+        content: decryptMessage(message.content),
         sentAt: message.sentAt,
         senderId: message.senderId,
       };
