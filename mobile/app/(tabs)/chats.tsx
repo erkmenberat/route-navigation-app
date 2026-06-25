@@ -54,22 +54,42 @@ type IncomingMessage = {
 
 function formatTime(value: string): string {
   const date = new Date(value);
+
+  if (isNaN(date.getTime())) {
+    console.warn('[formatTime] Ungültiger sentAt-Wert, kann nicht geparst werden:', value);
+    return '';
+  }
+
   const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) {
-    return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(date);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfToday.getDate() - 1);
+  const startOfThisWeek = new Date(startOfToday);
+  startOfThisWeek.setDate(startOfToday.getDate() - 6);
+
+  let branch: string;
+  let result: string;
+
+  if (date >= startOfToday) {
+    branch = 'heute → Uhrzeit';
+    result = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(date);
+  } else if (date >= startOfYesterday) {
+    branch = 'gestern → "Gestern"';
+    result = 'Gestern';
+  } else if (date >= startOfThisWeek) {
+    branch = 'diese Woche → Wochentag';
+    result = new Intl.DateTimeFormat('de-DE', { weekday: 'short' }).format(date);
+  } else {
+    branch = 'älter → Datum';
+    result = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(date);
   }
 
-  if (diffDays < 7) {
-    return new Intl.DateTimeFormat('de-DE', { weekday: 'short' }).format(date);
-  }
+  console.log(
+    `[formatTime] sentAt="${value}" | parsed=${date.toISOString()} | startOfToday=${startOfToday.toISOString()} | startOfYesterday=${startOfYesterday.toISOString()} | startOfThisWeek=${startOfThisWeek.toISOString()} | branch="${branch}" | output="${result}"`,
+  );
 
-  return new Intl.DateTimeFormat('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-  }).format(date);
+  return result;
 }
 
 export default function ChatsScreen() {
@@ -99,6 +119,14 @@ export default function ChatsScreen() {
         api.get<{ id: number }>('/users/profile'),
       ]);
 
+      console.log(
+        '[loadChats] Chats vom Server:',
+        chatsResponse.data.map((c) => ({
+          chatId: c.id,
+          lastMessageSentAt: c.messages[0]?.sentAt ?? null,
+          updatedAt: c.updatedAt,
+        })),
+      );
       setChats(chatsResponse.data);
       setCurrentUserId(profileResponse.data.id);
     } catch {
@@ -171,6 +199,9 @@ export default function ChatsScreen() {
   }
 
   useSocketEvent<IncomingMessage>('message:receive', (message) => {
+    console.log(
+      `[socket message:receive] chatId=${message.chatId} messageId=${message.id} sentAt="${message.sentAt}" | parsedDate=${new Date(message.sentAt).toISOString()}`,
+    );
     socketService.getSocket()?.emit('message:ack', { messageId: message.id });
 
     setChats((prev) => {
@@ -294,6 +325,13 @@ export default function ChatsScreen() {
               const otherUser = currentUserId === item.user1.id ? item.user2 : item.user1;
               const lastMessage = item.messages[0] ?? null;
 
+              const formattedTime = lastMessage ? formatTime(lastMessage.sentAt) : null;
+              if (lastMessage && formattedTime !== null) {
+                console.log(
+                  `[renderItem] Chat ${item.id} (${otherUser.name}): lastMessage.sentAt="${lastMessage.sentAt}" → UI zeigt "${formattedTime}"`,
+                );
+              }
+
               return (
                 <Pressable
                   style={({ pressed }) => [styles.chatRow, pressed && styles.chatRowPressed]}
@@ -314,8 +352,8 @@ export default function ChatsScreen() {
                       <Text numberOfLines={1} style={styles.chatName}>
                         {otherUser.name}
                       </Text>
-                      {lastMessage ? (
-                        <Text style={styles.chatTime}>{formatTime(lastMessage.sentAt)}</Text>
+                      {formattedTime !== null ? (
+                        <Text style={styles.chatTime}>{formattedTime}</Text>
                       ) : null}
                     </View>
                     <Text numberOfLines={1} style={styles.lastMessage}>
