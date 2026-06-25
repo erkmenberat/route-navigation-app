@@ -13,6 +13,15 @@ export class RoutesService {
 
   async create(userId: number, dto: CreateRouteDto) {
     try {
+      const BASE_PRICE = 4;
+      const PRICE_PER_KM = 2;
+      const PRICE_PER_MINUTE = 0.5;
+
+      const price =
+        BASE_PRICE +
+        dto.distance * PRICE_PER_KM +
+        dto.duration * PRICE_PER_MINUTE;
+
       return await this.prisma.route.create({
         data: {
           userId,
@@ -26,6 +35,7 @@ export class RoutesService {
           finishAt: dto.finishAt ? new Date(dto.finishAt) : undefined,
           distance: dto.distance,
           duration: dto.duration,
+          price,
         },
       });
     } catch (error) {

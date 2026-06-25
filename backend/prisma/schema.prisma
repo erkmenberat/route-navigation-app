@@ -57,6 +57,7 @@ model Route {
 
   distance    Float
   duration    Int
+  price       Float
 
   createdAt   DateTime @default(now())
 }
