@@ -19,8 +19,8 @@ export class RoutesService {
 
       const price =
         BASE_PRICE +
-        dto.distance * PRICE_PER_KM +
-        dto.duration * PRICE_PER_MINUTE;
+        (dto.distance / 1000) * PRICE_PER_KM +
+        (dto.duration / 60) * PRICE_PER_MINUTE;
 
       return await this.prisma.route.create({
         data: {
