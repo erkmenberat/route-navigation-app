@@ -7,6 +7,7 @@ interface RouteInfoCardProps {
   navigationMode: NavigationMode;
   isNavigating: boolean;
   bottomInset: number;
+  estimatedPrice?: number;
   onChangeNavigationMode: (mode: NavigationMode) => void;
   onStartNavigation: () => void;
   onStopNavigation: () => void;
@@ -17,6 +18,7 @@ export function RouteInfoCard({
   navigationMode,
   isNavigating,
   bottomInset,
+  estimatedPrice,
   onChangeNavigationMode,
   onStartNavigation,
   onStopNavigation,
@@ -28,6 +30,14 @@ export function RouteInfoCard({
         <Text style={styles.summaryValue}>{routeSummary.distanceKm.toFixed(1)} km</Text>
         <Text style={styles.summarySeparator}>|</Text>
         <Text style={styles.summaryValue}>{Math.round(routeSummary.durationMin)} min</Text>
+        {estimatedPrice != null ? (
+          <>
+            <Text style={styles.summarySeparator}>|</Text>
+            <Text style={[styles.summaryValue, styles.summaryPrice]}>
+              €{estimatedPrice.toFixed(2)}
+            </Text>
+          </>
+        ) : null}
       </View>
 
       <View style={styles.modeRow}>
@@ -108,6 +118,9 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
     fontSize: 18,
     fontWeight: '700',
+  },
+  summaryPrice: {
+    color: '#4ade80',
   },
   summarySeparator: {
     color: '#6b7280',
