@@ -9,10 +9,30 @@ import { CreateRouteDto } from './dto/create-route.dto';
 
 @Injectable()
 export class RoutesService {
+  private static readonly BASE_PRICE = 4;
+  private static readonly PRICE_PER_KM = 2;
+  private static readonly PRICE_PER_MINUTE = 0.5;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  estimate(
+    distanceMeters: number,
+    durationSeconds: number,
+  ): { estimatedPrice: number } {
+    const price =
+      RoutesService.BASE_PRICE +
+      (distanceMeters / 1000) * RoutesService.PRICE_PER_KM +
+      (durationSeconds / 60) * RoutesService.PRICE_PER_MINUTE;
+    return { estimatedPrice: Math.round(price * 100) / 100 };
+  }
 
   async create(userId: number, dto: CreateRouteDto) {
     try {
+      const price =
+        RoutesService.BASE_PRICE +
+        (dto.distance / 1000) * RoutesService.PRICE_PER_KM +
+        (dto.duration / 60) * RoutesService.PRICE_PER_MINUTE;
+
       return await this.prisma.route.create({
         data: {
           userId,
@@ -26,6 +46,7 @@ export class RoutesService {
           finishAt: dto.finishAt ? new Date(dto.finishAt) : undefined,
           distance: dto.distance,
           duration: dto.duration,
+          price,
         },
       });
     } catch (error) {

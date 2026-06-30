@@ -1,6 +1,7 @@
 import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
 import { saveAuthToken, saveRefreshToken } from '@/services/auth-token';
+import { socketService } from '@/services/socket';
 import { useState } from 'react';
 import {
   Alert,
@@ -32,6 +33,8 @@ export default function LoginScreen() {
 
       await saveAuthToken(response.data.access_token);
       await saveRefreshToken(response.data.refresh_token);
+      socketService.connect(response.data.access_token);
+      console.log("Success login websocket.");
       setStatusType('success');
       setStatusMessage('Login successful. Backend and database are reachable.');
 

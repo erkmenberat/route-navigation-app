@@ -18,6 +18,7 @@ import { SearchPanel } from '@/components/home/search-panel';
 import { useLocationTracking } from '@/hooks/use-location-tracking';
 import { useMapboxRoute } from '@/hooks/use-mapbox-route';
 import { useNavigation } from '@/hooks/use-navigation';
+import { fetchRouteEstimate } from '@/services/routes';
 import type { Coordinate, MapPerspective } from '@/types/navigation';
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -86,6 +87,18 @@ export default function HomeScreen() {
     mapPerspectiveRef,
     onCameraUpdate: triggerCameraUpdate,
   });
+
+  const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!routeSummary) {
+      setEstimatedPrice(null);
+      return;
+    }
+    fetchRouteEstimate(routeSummary.distanceMeters, routeSummary.durationSeconds)
+      .then(setEstimatedPrice)
+      .catch(() => setEstimatedPrice(null));
+  }, [routeSummary]);
 
   // On the very first GPS fix, center the map on the user's actual location
   const hasInitialCameraRef = useRef(false);
@@ -261,6 +274,7 @@ export default function HomeScreen() {
       {routeSummary ? (
         <RouteInfoCard
           bottomInset={insets.bottom}
+          estimatedPrice={estimatedPrice ?? undefined}
           isNavigating={isNavigating}
           navigationMode={navigationMode}
           routeSummary={routeSummary}

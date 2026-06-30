@@ -5,7 +5,8 @@
       "Bash(Get-ChildItem -Path \"c:\\\\r\\\\route-navigation-app\" -Recurse -Force)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Test-Path \"c:\\\\r\\\\route-navigation-app\\\\backend\\\\src\\\\auth\\\\auth.controller.spec.ts\")",
-      "Bash(npx jest *)"
+      "Bash(npx jest *)",
+      "Bash(git rm *)"
     ]
   }
 }

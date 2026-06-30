@@ -26,6 +26,7 @@ type RouteHistoryItem = {
   finishAt?: string | null;
   distance: number;
   duration: number;
+  price: number;
   createdAt: string;
 };
 
@@ -49,6 +50,15 @@ function formatDistance(meters: number) {
 
 function formatDuration(seconds: number) {
   return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('de-DE', {
+    currency: 'EUR',
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(value);
 }
 
 function formatDate(value: string) {
@@ -236,6 +246,10 @@ export default function HistoryScreen() {
                 <Text style={styles.metaLabel}>Dauer</Text>
                 <Text style={styles.metaValue}>{formatDuration(item.duration)}</Text>
               </View>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Preis</Text>
+                <Text style={[styles.metaValue, styles.priceValue]}>{formatPrice(item.price)}</Text>
+              </View>
             </View>
           </View>
         )}
@@ -385,5 +399,8 @@ const styles = StyleSheet.create({
     color: '#f9fafb',
     fontSize: 16,
     fontWeight: '800',
+  },
+  priceValue: {
+    color: '#4ade80',
   },
 });

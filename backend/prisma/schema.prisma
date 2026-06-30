@@ -19,9 +19,14 @@ model User {
   email         String         @unique
   password      String
   name          String
+  isOnline      Boolean        @default(false)
+  lastSeenAt    DateTime?
 
   routes        Route[]
   refreshTokens RefreshToken[]
+  chatsAsUser1  Chat[]         @relation("ChatUser1")
+  chatsAsUser2  Chat[]         @relation("ChatUser2")
+  sentMessages  Message[]
 }
 
 model RefreshToken {
@@ -52,6 +57,40 @@ model Route {
 
   distance    Float
   duration    Int
+  price       Float
 
   createdAt   DateTime @default(now())
+}
+
+model Chat {
+  id            Int       @id @default(autoincrement())
+  user1Id       Int
+  user2Id       Int
+  lastMessageId Int?
+  updatedAt     DateTime  @updatedAt
+
+  user1         User      @relation("ChatUser1", fields: [user1Id], references: [id])
+  user2         User      @relation("ChatUser2", fields: [user2Id], references: [id])
+  messages      Message[]
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([updatedAt])
+}
+
+model Message {
+  id          Int       @id @default(autoincrement())
+  chatId      Int
+  senderId    Int
+  content     String
+  sentAt      DateTime  @default(now())
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User      @relation(fields: [senderId], references: [id])
+
+  @@index([chatId, sentAt])
+  @@index([senderId])
 }

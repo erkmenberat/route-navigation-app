@@ -7,6 +7,7 @@ describe('UsersController', () => {
 
   const usersServiceMock = {
     findById: jest.fn(),
+    searchByName: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -20,6 +21,8 @@ describe('UsersController', () => {
     controller = module.get<UsersController>(UsersController);
   });
 
+  const mockReq = { user: { userId: 7, username: 'Alice' } };
+
   describe('getProfile', () => {
     it('delegates to UsersService.findById with the authenticated userId', async () => {
       const profile = {
@@ -30,9 +33,21 @@ describe('UsersController', () => {
       };
       usersServiceMock.findById.mockResolvedValue(profile);
 
-      const req = { user: { userId: 7, username: 'Alice' } };
-      await expect(controller.getProfile(req)).resolves.toEqual(profile);
+      await expect(controller.getProfile(mockReq)).resolves.toEqual(profile);
       expect(usersServiceMock.findById).toHaveBeenCalledWith(7);
+    });
+  });
+
+  describe('searchUsers', () => {
+    it('delegates to UsersService.searchByName with the authenticated userId and query', async () => {
+      const users = [{ id: 5, name: 'Bob' }];
+      usersServiceMock.searchByName.mockResolvedValue(users);
+
+      const query = { username: 'Bob' };
+      const result = await controller.searchUsers(mockReq, query);
+
+      expect(result).toEqual(users);
+      expect(usersServiceMock.searchByName).toHaveBeenCalledWith(7, query);
     });
   });
 });

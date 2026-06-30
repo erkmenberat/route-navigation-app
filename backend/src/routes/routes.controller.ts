@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateRouteDto } from './dto/create-route.dto';
+import { GetRouteEstimateQueryDto } from './dto/get-route-estimate-query.dto';
 import { GetRoutesQueryDto } from './dto/get-routes-query.dto';
 import { RoutesService } from './routes.service';
 
@@ -19,6 +20,11 @@ import { RoutesService } from './routes.service';
 @UseGuards(JwtAuthGuard)
 export class RoutesController {
   constructor(private readonly routesService: RoutesService) {}
+
+  @Get('estimate')
+  getEstimate(@Query() query: GetRouteEstimateQueryDto) {
+    return this.routesService.estimate(query.distance, query.duration);
+  }
 
   @Post('history')
   createHistory(

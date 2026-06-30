@@ -32,7 +32,6 @@ export default function RegisterScreen() {
         password,
       });
 
-      console.log(response.data);
       await deleteAuthToken();
       setStatusType('success');
       setStatusMessage('Registration successful. Please log in.');
