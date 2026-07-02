@@ -31,6 +31,10 @@ export const socketService = {
     socket.on('connect', () => {
       hasAttemptedRefresh = false;
       console.log(`[socket] connected id=${socket?.id}`);
+      // Request the current taxi snapshot on every (re)connect — the server
+      // only pushes it once at connect-time, which screens can easily miss
+      // if they mount after that push already happened.
+      instance.emit('joinTaxiMap');
     });
 
     socket.on('disconnect', async (reason) => {

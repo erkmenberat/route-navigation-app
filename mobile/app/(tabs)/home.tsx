@@ -9,7 +9,7 @@ import Mapbox, {
 } from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapControls } from '@/components/home/map-controls';
@@ -18,11 +18,16 @@ import { SearchPanel } from '@/components/home/search-panel';
 import { useLocationTracking } from '@/hooks/use-location-tracking';
 import { useMapboxRoute } from '@/hooks/use-mapbox-route';
 import { useNavigation } from '@/hooks/use-navigation';
+import { useSocketEvent } from '@/hooks/use-socket-event';
 import { fetchRouteEstimate } from '@/services/routes';
+import { getRole } from '@/services/auth-token';
+import { socketService } from '@/services/socket';
 import type { Coordinate, MapPerspective } from '@/types/navigation';
+import type { TaxiData } from '@/types/taxi';
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const fallbackCoordinate: Coordinate = [-43.2268, -22.9358];
+const taxiIcon = require('@/assets/images/taxi.png');
 
 if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
@@ -36,6 +41,7 @@ export default function HomeScreen() {
   const mapPerspectiveRef = useRef<MapPerspective>('overview');
   const [mapPerspective, setMapPerspective] = useState<MapPerspective>('overview');
   const [cameraCenter, setCameraCenter] = useState<Coordinate>(fallbackCoordinate);
+  //es darf nicht fallbackCoordinate sein weil sonst immer der center button einen fake wert zentrieren wird. Für Production muss das geändert werden. 
   const [cameraUpdateId, setCameraUpdateId] = useState(0);
 
   const triggerCameraUpdate = useCallback((center: Coordinate) => {
@@ -99,6 +105,63 @@ export default function HomeScreen() {
       .then(setEstimatedPrice)
       .catch(() => setEstimatedPrice(null));
   }, [routeSummary]);
+
+  const [taxis, setTaxis] = useState<Map<number, TaxiData>>(new Map());
+
+  useSocketEvent<TaxiData[]>('initialTaxiData', (data) => {
+    setTaxis(new Map(data.map((t) => [t.id, t])));
+  });
+
+  useSocketEvent<{ taxiId: number; lat: number; lng: number }>('locationUpdated', ({ taxiId, lat, lng }) => {
+    setTaxis((prev) => {
+      const existing = prev.get(taxiId);
+      if (!existing) return prev;
+      const next = new Map(prev);
+      next.set(taxiId, { ...existing, latitude: lat, longitude: lng });
+      return next;
+    });
+  });
+
+  useSocketEvent<TaxiData>('taxiConnected', (taxi) => {
+    setTaxis((prev) => new Map(prev).set(taxi.id, taxi));
+  });
+
+  useSocketEvent<{ taxiId: number }>('driverDisconnected', ({ taxiId }) => {
+    setTaxis((prev) => {
+      if (!prev.has(taxiId)) return prev;
+      const next = new Map(prev);
+      next.delete(taxiId);
+      return next;
+    });
+  });
+
+  // Driver-Tracking: eigene Rolle einmalig laden, dann bei jeder GPS-Aktualisierung
+  // (aus useLocationTracking, das ohnehin für den blauen "Meine Position"-Punkt läuft)
+  // die Position an den Server senden — kein zweiter, redundanter GPS-Watcher.
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    getRole().then(setRole);
+  }, []);
+
+  useEffect(() => {
+    if (role !== 'DRIVER') return;
+
+    // Während einer laufenden Simulation folgen andere Nutzer der simulierten
+    // Route (driverCoordinate) live mit. Sobald die Simulation endet oder
+    // gestoppt wird, springt die Übertragung sofort zurück auf die echte
+    // GPS-Position — die Route war ja nur eine Simulation, kein echter Fahrtweg.
+    const isSimulating = isNavigating && navigationMode === 'simulation';
+    const position = isSimulating ? driverCoordinate : currentCoordinate;
+    if (!position) return;
+
+    const socket = socketService.getSocket();
+    if (!socket) return;
+    socket.emit('updateLocation', {
+      lat: position[1],
+      lng: position[0],
+    });
+  }, [role, currentCoordinate, driverCoordinate, isNavigating, navigationMode]);
 
   // On the very first GPS fix, center the map on the user's actual location
   const hasInitialCameraRef = useRef(false);
@@ -237,11 +300,27 @@ export default function HomeScreen() {
 
         {driverCoordinate ? (
           <PointAnnotation id="driver-marker" coordinate={driverCoordinate}>
-            <View style={[styles.driverMarker, { transform: [{ rotate: `${driverBearing}deg` }] }]}>
-              <Ionicons name="navigate" color="#111827" size={22} />
-            </View>
+            {role === 'DRIVER' ? (
+              <Image source={taxiIcon} style={styles.taxiMarker} resizeMode="contain" />
+            ) : (
+              <View style={[styles.driverMarker, { transform: [{ rotate: `${driverBearing}deg` }] }]}>
+                <Ionicons name="navigate" color="#111827" size={22} />
+              </View>
+            )}
           </PointAnnotation>
         ) : null}
+
+        {Array.from(taxis.values())
+          .filter((t) => t.latitude !== null && t.longitude !== null)
+          .map((taxi) => (
+            <PointAnnotation
+              key={`taxi-${taxi.id}`}
+              id={`taxi-${taxi.id}`}
+              coordinate={[taxi.longitude!, taxi.latitude!]}
+            >
+              <Image source={taxiIcon} style={styles.taxiMarker} resizeMode="contain" />
+            </PointAnnotation>
+          ))}
       </MapView>
 
       <SearchPanel
@@ -305,6 +384,10 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 36,
+  },
+  taxiMarker: {
+    height: 32,
+    width: 32,
   },
   locationStatus: {
     backgroundColor: 'rgba(17, 24, 39, 0.88)',
