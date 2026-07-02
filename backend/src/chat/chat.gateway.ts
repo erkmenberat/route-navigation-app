@@ -46,8 +46,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = this.jwtService.verify<{ sub: number }>(token);
+      const payload = this.jwtService.verify<{ sub: number; role: string }>(
+        token,
+      );
       client.data.userId = payload.sub;
+      client.data.role = payload.role;
 
       await client.join(`user:${payload.sub}`);
 
