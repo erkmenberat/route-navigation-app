@@ -43,8 +43,8 @@ export class AuthService {
     const salt = await bcrypt.genSalt();
     const hash = await bcrypt.hash(dto.password, salt);
 
-    return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
+    const user = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
         data: {
           email: dto.email,
           password: hash,
@@ -54,13 +54,15 @@ export class AuthService {
       });
       await tx.taxi.create({
         data: {
-          userId: user.id,
+          userId: newUser.id,
           kennzeichen: dto.kennzeichen,
           model: dto.model,
         },
       });
-      return this.generateTokens(user.id, user.name, user.role);
+      return newUser;
     });
+
+    return this.generateTokens(user.id, user.name, user.role);
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
