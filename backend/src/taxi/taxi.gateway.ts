@@ -44,9 +44,6 @@ export class TaxiGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       await client.join(TAXI_MAP_ROOM);
 
-      const activeTaxis = await this.taxiService.findAllActive();
-      client.emit('initialTaxiData', activeTaxis);
-
       if (payload.role === 'DRIVER') {
         const taxi = await this.taxiService.setActive(payload.sub, true);
         client.data.taxiId = taxi.id;
@@ -71,6 +68,15 @@ export class TaxiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(TAXI_MAP_ROOM).emit('driverDisconnected', { taxiId });
     this.logger.log(
       `[disconnect] DRIVER userId=${userId} taxiId=${taxiId} is now inactive`,
+    );
+  }
+
+  @SubscribeMessage('joinTaxiMap')
+  async handleJoinTaxiMap(@ConnectedSocket() client: Socket): Promise<void> {
+    const activeTaxis = await this.taxiService.findAllActive();
+    client.emit('initialTaxiData', activeTaxis);
+    this.logger.log(
+      `[joinTaxiMap] socket=${client.id} userId=${client.data?.userId} received ${activeTaxis.length} active taxi(s): [${activeTaxis.map((t) => t.id).join(', ')}]`,
     );
   }
 
