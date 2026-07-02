@@ -2,6 +2,7 @@ import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
 import { saveAuthToken, saveRefreshToken, saveRole } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -11,43 +12,45 @@ import {
   Pressable,
   StyleSheet,
 } from 'react-native';
-import { router } from 'expo-router';
 
-export default function LoginScreen() {
+export default function DriverRegisterScreen() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [kennzeichen, setKennzeichen] = useState('');
+  const [model, setModel] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState<'error' | 'success' | 'info'>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function login() {
+  async function registerDriver() {
     setIsSubmitting(true);
     setStatusType('info');
-    setStatusMessage('Sending login request to backend...');
+    setStatusMessage('Sending driver registration request to backend...');
 
     try {
-      const response = await api.post('/auth/login', {
+      const response = await api.post('/auth/register/driver', {
+        name,
         email,
         password,
+        kennzeichen,
+        model,
       });
 
       await saveAuthToken(response.data.access_token);
       await saveRefreshToken(response.data.refresh_token);
-
-      const meResponse = await api.get('/auth/me');
-      await saveRole(meResponse.data.role);
-
+      await saveRole('DRIVER');
       socketService.connect(response.data.access_token);
-      console.log("Success login websocket.");
+
       setStatusType('success');
-      setStatusMessage('Login successful. Backend and database are reachable.');
+      setStatusMessage('Registration successful.');
 
       router.replace('/home');
     } catch (error) {
       const message = getAuthErrorMessage(error);
       setStatusType('error');
       setStatusMessage(message);
-      Alert.alert('Login issue', message);
+      Alert.alert('Registrierung fehlgeschlagen', message);
       console.log(error);
     } finally {
       setIsSubmitting(false);
@@ -56,7 +59,15 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>Fahrer Registrierung</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Benutzername"
+        placeholderTextColor="#888"
+        value={name}
+        onChangeText={setName}
+      />
 
       <TextInput
         style={styles.input}
@@ -76,17 +87,34 @@ export default function LoginScreen() {
         secureTextEntry
       />
 
-      <Pressable style={styles.button} onPress={login}>
-        <Text style={styles.buttonText}>{isSubmitting ? 'Bitte warten...' : 'Einloggen'}</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Kennzeichen (z.B. B-TX 1234)"
+        placeholderTextColor="#888"
+        value={kennzeichen}
+        onChangeText={setKennzeichen}
+        autoCapitalize="characters"
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Fahrzeugmodell (z.B. Toyota Prius)"
+        placeholderTextColor="#888"
+        value={model}
+        onChangeText={setModel}
+      />
+
+      <Pressable style={styles.button} onPress={registerDriver} disabled={isSubmitting}>
+        <Text style={styles.buttonText}>{isSubmitting ? 'Bitte warten...' : 'Als Fahrer registrieren'}</Text>
+      </Pressable>
+
+      <Pressable style={styles.driverButton} onPress={() => router.navigate('/register')}>
+        <Text style={styles.driverButtonText}>Ich bin Kunde →</Text>
       </Pressable>
 
       {statusMessage ? (
         <Text style={[styles.status, styles[statusType]]}>{statusMessage}</Text>
       ) : null}
-
-      <Pressable style={styles.button} onPress={() => router.navigate('/register')}>
-        <Text style={styles.buttonText}>Register</Text>
-      </Pressable>
     </View>
   );
 }
@@ -100,7 +128,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: 'white',
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 24,
     textAlign: 'center',
@@ -115,7 +143,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   button: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#16a34a',
     padding: 14,
     borderRadius: 8,
     marginTop: 8,
@@ -143,5 +171,17 @@ const styles = StyleSheet.create({
   error: {
     backgroundColor: '#450a0a',
     color: '#fecaca',
+  },
+  driverButton: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  driverButtonText: {
+    color: '#9ca3af',
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });

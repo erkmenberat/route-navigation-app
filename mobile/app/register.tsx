@@ -85,6 +85,10 @@ export default function RegisterScreen() {
       {statusMessage ? (
         <Text style={[styles.status, styles[statusType]]}>{statusMessage}</Text>
       ) : null}
+
+      <Pressable style={styles.driverButton} onPress={() => router.navigate('/driver-register')}>
+        <Text style={styles.driverButtonText}>Ich bin Fahrer →</Text>
+      </Pressable>
     </View>
   );
 }
@@ -141,5 +145,17 @@ const styles = StyleSheet.create({
   error: {
     backgroundColor: '#450a0a',
     color: '#fecaca',
+  },
+  driverButton: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  driverButtonText: {
+    color: '#9ca3af',
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });
