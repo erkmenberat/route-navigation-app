@@ -11,6 +11,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterDriverDto } from './dto/register-driver.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -19,6 +20,13 @@ import { JwtRequest } from '../common/jwt-request.type';
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
+
+  @Throttle({ default: { ttl: 900_000, limit: 10 } })
+  @HttpCode(HttpStatus.CREATED)
+  @Post('register/driver')
+  registerDriver(@Body() dto: RegisterDriverDto) {
+    return this.authService.registerDriver(dto);
+  }
 
   @Throttle({ default: { ttl: 900_000, limit: 10 } })
   @Post('register')

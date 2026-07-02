@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterDriverDto } from './dto/register-driver.dto';
 import { LoginDto } from './dto/login.dto';
 import { Prisma } from '../generated/prisma/client';
 import { Role } from '../generated/prisma/enums';
@@ -32,6 +33,34 @@ export class AuthService {
     const user = await this.createUser(newUser, hash);
 
     return this.generateTokens(user.id, user.name, user.role);
+  }
+
+  async registerDriver(dto: RegisterDriverDto): Promise<AuthTokens> {
+    const exists = await this.findUserByEmail(dto.email);
+    if (exists)
+      throw new ConflictException('An account with this email already exists.');
+
+    const salt = await bcrypt.genSalt();
+    const hash = await bcrypt.hash(dto.password, salt);
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: dto.email,
+          password: hash,
+          name: dto.name,
+          role: Role.DRIVER,
+        },
+      });
+      await tx.taxi.create({
+        data: {
+          userId: user.id,
+          kennzeichen: dto.kennzeichen,
+          model: dto.model,
+        },
+      });
+      return this.generateTokens(user.id, user.name, user.role);
+    });
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
