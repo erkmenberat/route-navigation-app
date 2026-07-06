@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { Socket } from 'socket.io-client';
 
 import { MapControls } from '@/components/home/map-controls';
 import { RouteInfoCard } from '@/components/home/route-info-card';
@@ -107,6 +108,32 @@ export default function HomeScreen() {
   }, [routeSummary]);
 
   const [taxis, setTaxis] = useState<Map<number, TaxiData>>(new Map());
+
+  // Ask the server for the current taxi snapshot once we're guaranteed to
+  // already be listening for the reply (see initialTaxiData below) — asking
+  // from the generic socket connect handler instead let this screen miss
+  // the snapshot if the socket connected before this screen ever mounted.
+  useEffect(() => {
+    let activeSocket: Socket | null = null;
+
+    function requestSnapshot() {
+      activeSocket?.emit('joinTaxiMap');
+    }
+
+    function register(s: Socket) {
+      if (activeSocket === s) return;
+      if (activeSocket) activeSocket.off('connect', requestSnapshot);
+      activeSocket = s;
+      if (s.connected) requestSnapshot();
+      s.on('connect', requestSnapshot);
+    }
+
+    const unsubscribe = socketService.onSocket(register);
+    return () => {
+      unsubscribe();
+      if (activeSocket) activeSocket.off('connect', requestSnapshot);
+    };
+  }, []);
 
   useSocketEvent<TaxiData[]>('initialTaxiData', (data) => {
     setTaxis(new Map(data.map((t) => [t.id, t])));

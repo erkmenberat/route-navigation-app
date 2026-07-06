@@ -93,8 +93,10 @@ export class AuthService {
         throw new UnauthorizedException('Refresh token is invalid or expired.');
       }
 
-      // Token rotation: old token is invalidated, a new pair is issued
-      await this.prisma.refreshToken.delete({ where: { id: record.id } });
+      // Token rotation: old token is invalidated, a new pair is issued.
+      // deleteMany (not delete) so a concurrent refresh call racing on the
+      // same token doesn't crash once this row has already been rotated out.
+      await this.prisma.refreshToken.deleteMany({ where: { id: record.id } });
       return this.generateTokens(
         record.user.id,
         record.user.name,

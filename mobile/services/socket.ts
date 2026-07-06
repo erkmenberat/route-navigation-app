@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
-import { getRefreshToken, saveAuthToken, saveRefreshToken } from './auth-token';
+import { refreshAccessToken } from './auth-token';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4001';
 
@@ -31,10 +30,6 @@ export const socketService = {
     socket.on('connect', () => {
       hasAttemptedRefresh = false;
       console.log(`[socket] connected id=${socket?.id}`);
-      // Request the current taxi snapshot on every (re)connect — the server
-      // only pushes it once at connect-time, which screens can easily miss
-      // if they mount after that push already happened.
-      instance.emit('joinTaxiMap');
     });
 
     socket.on('disconnect', async (reason) => {
@@ -50,27 +45,15 @@ export const socketService = {
         }
         hasAttemptedRefresh = true;
 
-        try {
-          const refreshToken = await getRefreshToken();
-          if (!refreshToken) {
-            console.log('[socket] server disconnect — no refresh token, cannot recover');
-            return;
-          }
-
-          const { data } = await axios.post<{ access_token: string; refresh_token: string }>(
-            `${BASE_URL}/auth/refresh`,
-            { refreshToken },
-          );
-
-          await saveAuthToken(data.access_token);
-          await saveRefreshToken(data.refresh_token);
-
-          console.log('[socket] token refreshed after server disconnect → reconnecting');
-          instance.auth = { token: data.access_token };
-          instance.connect();
-        } catch {
+        const accessToken = await refreshAccessToken();
+        if (!accessToken) {
           console.log('[socket] token refresh failed after server disconnect — session expired');
+          return;
         }
+
+        console.log('[socket] token refreshed after server disconnect → reconnecting');
+        instance.auth = { token: accessToken };
+        instance.connect();
       }
     });
 
@@ -83,24 +66,15 @@ export const socketService = {
       }
       hasAttemptedRefresh = true;
 
-      try {
-        const refreshToken = await getRefreshToken();
-        if (!refreshToken) return;
-
-        const { data } = await axios.post<{ access_token: string; refresh_token: string }>(
-          `${BASE_URL}/auth/refresh`,
-          { refreshToken },
-        );
-
-        await saveAuthToken(data.access_token);
-        await saveRefreshToken(data.refresh_token);
-
-        console.log('[socket] token refreshed → reconnecting');
-        instance.auth = { token: data.access_token };
-        instance.connect();
-      } catch {
+      const accessToken = await refreshAccessToken();
+      if (!accessToken) {
         console.log('[socket] token refresh failed — session expired');
+        return;
       }
+
+      console.log('[socket] token refreshed → reconnecting');
+      instance.auth = { token: accessToken };
+      instance.connect();
     });
 
     const created = socket;

@@ -1,13 +1,7 @@
 import axios from 'axios';
 import { router } from 'expo-router';
 
-import {
-  deleteAllTokens,
-  getAuthToken,
-  getRefreshToken,
-  saveAuthToken,
-  saveRefreshToken,
-} from './auth-token';
+import { deleteAllTokens, getAuthToken, refreshAccessToken } from './auth-token';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4001';
 
@@ -75,24 +69,16 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = await getRefreshToken();
+      const accessToken = await refreshAccessToken();
 
-      if (!refreshToken) {
+      if (!accessToken) {
         throw new Error('No refresh token available');
       }
 
-      const { data } = await axios.post<{ access_token: string; refresh_token: string }>(
-        `${BASE_URL}/auth/refresh`,
-        { refreshToken },
-      );
+      api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+      settlePendingRequests(null, accessToken);
 
-      await saveAuthToken(data.access_token);
-      await saveRefreshToken(data.refresh_token);
-
-      api.defaults.headers.common.Authorization = `Bearer ${data.access_token}`;
-      settlePendingRequests(null, data.access_token);
-
-      originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       return api(originalRequest);
     } catch (refreshError) {
       settlePendingRequests(refreshError, null);
