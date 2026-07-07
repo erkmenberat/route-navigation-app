@@ -23,7 +23,8 @@ type RideSocketEvent =
   | 'ride:request'
   | 'ride:accept'
   | 'ride:start'
-  | 'ride:cancel';
+  | 'ride:cancel'
+  | 'ride:active';
 type RideErrorCode = 'UNAUTHORIZED' | 'FORBIDDEN' | 'VALIDATION' | 'CONFLICT';
 type CancelledBy = 'USER' | 'DRIVER';
 
@@ -35,6 +36,23 @@ interface RideErrorPayload {
 
 interface RideCancelledPayload extends RideRequestModel {
   cancelledBy: CancelledBy;
+}
+
+interface DriverRideCancelledPayload {
+  id: number;
+  status: RideRequestModel['status'];
+  cancelledBy: CancelledBy;
+}
+
+interface DriverRideBroadcastPayload {
+  id: number;
+  status: RideRequestModel['status'];
+  destination: string;
+  distance: number;
+  duration: number;
+  price: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 @WebSocketGateway({ cors: true })
@@ -95,9 +113,16 @@ export class RidesGateway implements OnGatewayConnection {
       const userId = client.data.userId as number;
       const ride = await this.ridesService.create(userId, dto);
       client.emit('ride:requested', ride);
-      this.server.to(DRIVERS_ROOM).emit('ride:new', ride);
-      this.logger.log(`[ride:request] userId=${userId} rideId=${ride.id}`);
+      this.server
+        .to(DRIVERS_ROOM)
+        .emit('ride:new', this.toDriverBroadcast(ride));
+      this.logger.log(
+        `[ride:request] created userId=${userId} rideId=${ride.id}`,
+      );
     } catch (error) {
+      this.logger.warn(
+        `[ride:request] failed userId=${client.data.userId ?? 'unknown'} reason=${this.errorMessage(error)}`,
+      );
       this.emitError(
         client,
         'ride:request',
@@ -126,9 +151,12 @@ export class RidesGateway implements OnGatewayConnection {
         .except(`user:${driverUserId}`)
         .emit('ride:taken', { rideId: ride.id });
       this.logger.log(
-        `[ride:accept] driverUserId=${driverUserId} rideId=${ride.id}`,
+        `[ride:accept] accepted driverUserId=${driverUserId} rideId=${ride.id}`,
       );
     } catch (error) {
+      this.logger.warn(
+        `[ride:accept] failed driverUserId=${client.data.userId ?? 'unknown'} rideId=${dto.rideId} reason=${this.errorMessage(error)}`,
+      );
       this.emitError(
         client,
         'ride:accept',
@@ -156,9 +184,12 @@ export class RidesGateway implements OnGatewayConnection {
         this.server.to(`user:${ride.driverId}`).emit('ride:started', ride);
       }
       this.logger.log(
-        `[ride:start] driverUserId=${driverUserId} rideId=${ride.id}`,
+        `[ride:start] started driverUserId=${driverUserId} rideId=${ride.id}`,
       );
     } catch (error) {
+      this.logger.warn(
+        `[ride:start] failed driverUserId=${client.data.userId ?? 'unknown'} rideId=${dto.rideId} reason=${this.errorMessage(error)}`,
+      );
       this.emitError(
         client,
         'ride:start',
@@ -203,6 +234,25 @@ export class RidesGateway implements OnGatewayConnection {
     }
   }
 
+  @SubscribeMessage('ride:active')
+  async handleRideActive(@ConnectedSocket() client: Socket): Promise<void> {
+    if (!this.requireAnyRole(client, 'ride:active')) return;
+
+    try {
+      const userId = client.data.userId as number;
+      const role = client.data.role as Role;
+      const ride = await this.ridesService.findActiveForActor(userId, role);
+      client.emit('ride:active', ride);
+    } catch (error) {
+      this.emitError(
+        client,
+        'ride:active',
+        'CONFLICT',
+        this.errorMessage(error),
+      );
+    }
+  }
+
   private emitRideAccepted(ride: RideRequestModel): void {
     this.server.to(`user:${ride.userId}`).emit('ride:accepted', ride);
     if (ride.driverId) {
@@ -222,7 +272,38 @@ export class RidesGateway implements OnGatewayConnection {
       return;
     }
 
-    this.server.to(DRIVERS_ROOM).emit('ride:cancelled', payload);
+    this.server
+      .to(DRIVERS_ROOM)
+      .emit(
+        'ride:cancelled',
+        this.toDriverCancelledBroadcast(ride, cancelledBy),
+      );
+  }
+
+  private toDriverBroadcast(
+    ride: RideRequestModel,
+  ): DriverRideBroadcastPayload {
+    return {
+      id: ride.id,
+      status: ride.status,
+      destination: ride.destination,
+      distance: ride.distance,
+      duration: ride.duration,
+      price: ride.price,
+      createdAt: ride.createdAt,
+      updatedAt: ride.updatedAt,
+    };
+  }
+
+  private toDriverCancelledBroadcast(
+    ride: RideRequestModel,
+    cancelledBy: CancelledBy,
+  ): DriverRideCancelledPayload {
+    return {
+      id: ride.id,
+      status: ride.status,
+      cancelledBy,
+    };
   }
 
   private requireRole(
@@ -263,6 +344,15 @@ export class RidesGateway implements OnGatewayConnection {
     dtoClass: new () => T,
     payload: unknown,
   ): T | null {
+    if (
+      payload === null ||
+      typeof payload !== 'object' ||
+      Array.isArray(payload)
+    ) {
+      this.emitError(client, event, 'VALIDATION', 'Invalid ride payload');
+      return null;
+    }
+
     const dto = plainToInstance(dtoClass, payload, {
       enableImplicitConversion: true,
     });

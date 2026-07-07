@@ -238,16 +238,54 @@ describe('RidesService', () => {
   });
 
   describe('findActiveForUser', () => {
-    it('returns the newest active ride for a user or driver', async () => {
+    it('returns the newest active ride requested by the user', async () => {
       const ride = { id: 3, status: RideStatus.STARTED };
       prismaMock.rideRequest.findFirst.mockResolvedValue(ride);
 
       await expect(service.findActiveForUser(7)).resolves.toEqual(ride);
       expect(prismaMock.rideRequest.findFirst).toHaveBeenCalledWith({
         where: {
-          OR: [{ userId: 7 }, { driverId: 7 }],
+          userId: 7,
           status: {
             in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  });
+
+  describe('findActiveForActor', () => {
+    it('returns pending, accepted, or started rides for a user', async () => {
+      const ride = { id: 3, userId: 7, status: RideStatus.PENDING };
+      prismaMock.rideRequest.findFirst.mockResolvedValue(ride);
+
+      await expect(service.findActiveForActor(7, Role.USER)).resolves.toEqual(
+        ride,
+      );
+      expect(prismaMock.rideRequest.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 7,
+          status: {
+            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
+    it('returns only accepted or started rides assigned to a driver', async () => {
+      const ride = { id: 4, driverId: 22, status: RideStatus.ACCEPTED };
+      prismaMock.rideRequest.findFirst.mockResolvedValue(ride);
+
+      await expect(
+        service.findActiveForActor(22, Role.DRIVER),
+      ).resolves.toEqual(ride);
+      expect(prismaMock.rideRequest.findFirst).toHaveBeenCalledWith({
+        where: {
+          driverId: 22,
+          status: {
+            in: [RideStatus.ACCEPTED, RideStatus.STARTED],
           },
         },
         orderBy: { createdAt: 'desc' },

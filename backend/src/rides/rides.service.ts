@@ -128,14 +128,32 @@ export class RidesService {
   }
 
   async findActiveForUser(userId: number) {
+    return this.findActiveForActor(userId, Role.USER);
+  }
+
+  async findActiveForActor(userId: number, role: Role) {
     try {
+      const where =
+        role === Role.DRIVER
+          ? {
+              driverId: userId,
+              status: {
+                in: [RideStatus.ACCEPTED, RideStatus.STARTED],
+              },
+            }
+          : {
+              userId,
+              status: {
+                in: [
+                  RideStatus.PENDING,
+                  RideStatus.ACCEPTED,
+                  RideStatus.STARTED,
+                ],
+              },
+            };
+
       return await this.prisma.rideRequest.findFirst({
-        where: {
-          OR: [{ userId }, { driverId: userId }],
-          status: {
-            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
-          },
-        },
+        where,
         orderBy: { createdAt: 'desc' },
       });
     } catch (error) {

@@ -29,12 +29,12 @@ import { useMapboxRoute } from '@/hooks/use-mapbox-route';
 import { useNavigation } from '@/hooks/use-navigation';
 import { useRideSocketEvent } from '@/hooks/use-ride-socket-event';
 import { useSocketEvent } from '@/hooks/use-socket-event';
-import { acceptRide, cancelRide, requestRide, startRide } from '@/services/rides';
+import { acceptRide, cancelRide, requestActiveRide, requestRide, startRide } from '@/services/rides';
 import { fetchRouteEstimate } from '@/services/routes';
 import { getRole } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
 import type { Coordinate, MapPerspective } from '@/types/navigation';
-import type { RideErrorPayload, RideRequest } from '@/types/ride';
+import type { DriverRideOffer, RideErrorPayload, RideRequest } from '@/types/ride';
 import type { TaxiData } from '@/types/taxi';
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -46,6 +46,12 @@ if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
 }
 
+function userPhaseFromRide(ride: RideRequest): UserRidePhase {
+  if (ride.status === 'STARTED') return 'started';
+  if (ride.status === 'ACCEPTED') return 'accepted';
+  return 'pending';
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -54,7 +60,7 @@ export default function HomeScreen() {
   const mapPerspectiveRef = useRef<MapPerspective>('overview');
   const [mapPerspective, setMapPerspective] = useState<MapPerspective>('overview');
   const [cameraCenter, setCameraCenter] = useState<Coordinate>(fallbackCoordinate);
-  //es darf nicht fallbackCoordinate sein weil sonst immer der center button einen fake wert zentrieren wird. Für Production muss das geändert werden. 
+  //es darf nicht fallbackCoordinate sein weil sonst immer der center button einen fake wert zentrieren wird. Für Production muss das geändert werden.
   const [cameraUpdateId, setCameraUpdateId] = useState(0);
 
   const triggerCameraUpdate = useCallback((center: Coordinate) => {
@@ -110,7 +116,7 @@ export default function HomeScreen() {
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
   const [userRidePhase, setUserRidePhase] = useState<UserRidePhase | null>(null);
   const [activeRide, setActiveRide] = useState<RideRequest | null>(null);
-  const [incomingDriverRide, setIncomingDriverRide] = useState<RideRequest | null>(null);
+  const [incomingDriverRide, setIncomingDriverRide] = useState<DriverRideOffer | null>(null);
   const [takenDriverRideId, setTakenDriverRideId] = useState<number | null>(null);
   const [driverRideErrorMessage, setDriverRideErrorMessage] = useState<string | null>(null);
   const [acceptingRideId, setAcceptingRideId] = useState<number | null>(null);
@@ -192,12 +198,67 @@ export default function HomeScreen() {
     getRole().then(setRole);
   }, []);
 
+  useEffect(() => {
+    if (role !== 'USER' && role !== 'DRIVER') return;
+
+    let activeSocket: Socket | null = null;
+
+    function requestActiveSnapshot() {
+      try {
+        requestActiveRide();
+      } catch {
+        // Socket may not exist yet; onSocket will call again when it is created.
+      }
+    }
+
+    function register(s: Socket) {
+      if (activeSocket === s) return;
+      if (activeSocket) activeSocket.off('connect', requestActiveSnapshot);
+      activeSocket = s;
+      if (s.connected) requestActiveSnapshot();
+      s.on('connect', requestActiveSnapshot);
+    }
+
+    const unsubscribe = socketService.onSocket(register);
+    return () => {
+      unsubscribe();
+      if (activeSocket) activeSocket.off('connect', requestActiveSnapshot);
+    };
+  }, [role]);
+
   useRideSocketEvent('ride:requested', (ride) => {
     if (role !== 'USER') return;
     setActiveRide(ride);
     setUserRidePhase('pending');
     setCancellingRideId(null);
     setRideErrorMessage(null);
+  });
+
+  useRideSocketEvent('ride:active', (ride) => {
+    if (role === 'USER') {
+      if (!ride) {
+        setActiveRide(null);
+        setUserRidePhase(null);
+        setCancellingRideId(null);
+        return;
+      }
+
+      setActiveRide(ride);
+      setUserRidePhase(userPhaseFromRide(ride));
+      setCancellingRideId(null);
+      setRideErrorMessage(null);
+      return;
+    }
+
+    if (role === 'DRIVER') {
+      setActiveRide(ride);
+      setIncomingDriverRide(null);
+      setTakenDriverRideId(null);
+      setAcceptingRideId(null);
+      setStartingRideId(null);
+      setCancellingRideId(null);
+      if (ride) setDriverRideErrorMessage(null);
+    }
   });
 
   useRideSocketEvent('ride:accepted', (ride) => {

@@ -28,3 +28,7 @@ export function startRide(rideId: number): void {
 export function cancelRide(rideId: number): void {
   emitRideEvent('ride:cancel', { rideId });
 }
+
+export function requestActiveRide(): void {
+  emitRideEvent('ride:active', {});
+}

@@ -22,6 +22,17 @@ export interface RideRequest {
   updatedAt: string;
 }
 
+export interface DriverRideOffer {
+  id: number;
+  status: RideStatus;
+  destination: string;
+  distance: number;
+  duration: number;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RidePayload {
   origin: string;
   destination: string;
@@ -37,13 +48,14 @@ export interface RideIdPayload {
   rideId: number;
 }
 
-export type RideClientEvent = 'ride:request' | 'ride:accept' | 'ride:start' | 'ride:cancel';
+export type RideClientEvent = 'ride:request' | 'ride:accept' | 'ride:start' | 'ride:cancel' | 'ride:active';
 
 export interface RideClientEventPayloads {
   'ride:request': RidePayload;
   'ride:accept': RideIdPayload;
   'ride:start': RideIdPayload;
   'ride:cancel': RideIdPayload;
+  'ride:active': Record<string, never>;
 }
 
 export type RideErrorCode = 'UNAUTHORIZED' | 'FORBIDDEN' | 'VALIDATION' | 'CONFLICT';
@@ -62,6 +74,12 @@ export interface RideCancelledPayload extends RideRequest {
   cancelledBy: 'USER' | 'DRIVER';
 }
 
+export interface DriverRideCancelledPayload {
+  id: number;
+  status: RideStatus;
+  cancelledBy: 'USER' | 'DRIVER';
+}
+
 export type RideServerEvent =
   | 'ride:requested'
   | 'ride:new'
@@ -69,17 +87,18 @@ export type RideServerEvent =
   | 'ride:taken'
   | 'ride:started'
   | 'ride:cancelled'
+  | 'ride:active'
   | 'ride:error';
 
 export interface RideServerEventPayloads {
   'ride:requested': RideRequest;
-  'ride:new': RideRequest;
+  'ride:new': DriverRideOffer;
   'ride:accepted': RideRequest;
   'ride:taken': RideTakenPayload;
   'ride:started': RideRequest;
-  'ride:cancelled': RideCancelledPayload;
+  'ride:cancelled': RideCancelledPayload | DriverRideCancelledPayload;
+  'ride:active': RideRequest | null;
   'ride:error': RideErrorPayload;
 }
 
-export type RideServerEventPayload<EventName extends RideServerEvent> =
-  RideServerEventPayloads[EventName];
+export type RideServerEventPayload<EventName extends RideServerEvent> = RideServerEventPayloads[EventName];

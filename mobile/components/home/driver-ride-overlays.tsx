@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { RideRequest } from '@/types/ride';
+import type { DriverRideOffer, RideRequest } from '@/types/ride';
 
 interface DriverRideModalProps {
-  ride: RideRequest;
+  ride: DriverRideOffer;
   isAccepting: boolean;
   isTaken: boolean;
   onAccept: () => void;
