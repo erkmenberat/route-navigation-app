@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { RideStatus } from '../generated/prisma/enums';
+import { RideStatus, Role } from '../generated/prisma/enums';
 import { throwIfDatabaseError } from '../common/db-error.helper';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
@@ -90,17 +90,23 @@ export class RidesService {
     }
   }
 
-  async cancel(actorUserId: number, rideId: number) {
+  async cancel(actorUserId: number, rideId: number, actorRole: Role) {
     try {
       const cancelledAt = new Date();
+      const where =
+        actorRole === Role.USER
+          ? {
+              id: rideId,
+              userId: actorUserId,
+              status: { in: [RideStatus.PENDING, RideStatus.ACCEPTED] },
+            }
+          : {
+              id: rideId,
+              driverId: actorUserId,
+              status: { in: [RideStatus.ACCEPTED, RideStatus.STARTED] },
+            };
       const result = await this.prisma.rideRequest.updateMany({
-        where: {
-          id: rideId,
-          OR: [{ userId: actorUserId }, { driverId: actorUserId }],
-          status: {
-            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
-          },
-        },
+        where,
         data: {
           status: RideStatus.CANCELLED,
           cancelledAt,

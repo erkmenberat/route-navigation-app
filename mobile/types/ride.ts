@@ -63,6 +63,7 @@ export interface RideCancelledPayload extends RideRequest {
 }
 
 export type RideServerEvent =
+  | 'ride:requested'
   | 'ride:new'
   | 'ride:accepted'
   | 'ride:taken'
@@ -71,6 +72,7 @@ export type RideServerEvent =
   | 'ride:error';
 
 export interface RideServerEventPayloads {
+  'ride:requested': RideRequest;
   'ride:new': RideRequest;
   'ride:accepted': RideRequest;
   'ride:taken': RideTakenPayload;

@@ -1,6 +1,6 @@
 import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { RideStatus } from '../generated/prisma/enums';
+import { RideStatus, Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { RidesService } from './rides.service';
@@ -150,7 +150,35 @@ describe('RidesService', () => {
   });
 
   describe('cancel', () => {
-    it('cancels an active ride for the requesting user or assigned driver', async () => {
+    it('lets the user cancel a pending or accepted ride', async () => {
+      const cancelled = {
+        id: 11,
+        userId: 7,
+        driverId: null,
+        status: RideStatus.CANCELLED,
+      };
+      prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.rideRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
+
+      await expect(service.cancel(7, 11, Role.USER)).resolves.toEqual(
+        cancelled,
+      );
+      expect(prismaMock.rideRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 11,
+          userId: 7,
+          status: {
+            in: [RideStatus.PENDING, RideStatus.ACCEPTED],
+          },
+        },
+        data: {
+          status: RideStatus.CANCELLED,
+          cancelledAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('lets the assigned driver cancel an accepted or started ride', async () => {
       const cancelled = {
         id: 11,
         userId: 7,
@@ -160,13 +188,15 @@ describe('RidesService', () => {
       prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.rideRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
 
-      await expect(service.cancel(7, 11)).resolves.toEqual(cancelled);
+      await expect(service.cancel(22, 11, Role.DRIVER)).resolves.toEqual(
+        cancelled,
+      );
       expect(prismaMock.rideRequest.updateMany).toHaveBeenCalledWith({
         where: {
           id: 11,
-          OR: [{ userId: 7 }, { driverId: 7 }],
+          driverId: 22,
           status: {
-            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
+            in: [RideStatus.ACCEPTED, RideStatus.STARTED],
           },
         },
         data: {
@@ -179,10 +209,31 @@ describe('RidesService', () => {
     it('rejects cancel when the actor is not part of the ride', async () => {
       prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 0 });
 
-      await expect(service.cancel(99, 11)).rejects.toBeInstanceOf(
+      await expect(service.cancel(99, 11, Role.USER)).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(prismaMock.rideRequest.findUniqueOrThrow).not.toHaveBeenCalled();
+    });
+
+    it('rejects when a user tries to cancel a started ride', async () => {
+      prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancel(7, 11, Role.USER)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prismaMock.rideRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 11,
+          userId: 7,
+          status: {
+            in: [RideStatus.PENDING, RideStatus.ACCEPTED],
+          },
+        },
+        data: {
+          status: RideStatus.CANCELLED,
+          cancelledAt: expect.any(Date),
+        },
+      });
     });
   });
 

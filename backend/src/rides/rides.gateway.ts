@@ -94,6 +94,7 @@ export class RidesGateway implements OnGatewayConnection {
     try {
       const userId = client.data.userId as number;
       const ride = await this.ridesService.create(userId, dto);
+      client.emit('ride:requested', ride);
       this.server.to(DRIVERS_ROOM).emit('ride:new', ride);
       this.logger.log(`[ride:request] userId=${userId} rideId=${ride.id}`);
     } catch (error) {
@@ -180,7 +181,11 @@ export class RidesGateway implements OnGatewayConnection {
     try {
       const actorUserId = client.data.userId as number;
       const actorRole = client.data.role as Role;
-      const ride = await this.ridesService.cancel(actorUserId, dto.rideId);
+      const ride = await this.ridesService.cancel(
+        actorUserId,
+        dto.rideId,
+        actorRole,
+      );
       this.emitRideCancelled(
         ride,
         actorRole === Role.DRIVER ? 'DRIVER' : 'USER',

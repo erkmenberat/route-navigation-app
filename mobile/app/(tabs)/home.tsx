@@ -9,26 +9,38 @@ import Mapbox, {
 } from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Socket } from 'socket.io-client';
 
+import { DriverActiveRideCard, DriverRideModal } from '@/components/home/driver-ride-overlays';
 import { MapControls } from '@/components/home/map-controls';
 import { RouteInfoCard } from '@/components/home/route-info-card';
 import { SearchPanel } from '@/components/home/search-panel';
 import { useLocationTracking } from '@/hooks/use-location-tracking';
 import { useMapboxRoute } from '@/hooks/use-mapbox-route';
 import { useNavigation } from '@/hooks/use-navigation';
+import { useRideSocketEvent } from '@/hooks/use-ride-socket-event';
 import { useSocketEvent } from '@/hooks/use-socket-event';
+import { acceptRide, cancelRide, requestRide, startRide } from '@/services/rides';
 import { fetchRouteEstimate } from '@/services/routes';
 import { getRole } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
 import type { Coordinate, MapPerspective } from '@/types/navigation';
+import type { RideErrorPayload, RideRequest } from '@/types/ride';
 import type { TaxiData } from '@/types/taxi';
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const fallbackCoordinate: Coordinate = [-43.2268, -22.9358];
 const taxiIcon = require('@/assets/images/taxi.png');
+type UserRidePhase = 'pending' | 'accepted' | 'started';
 
 if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
@@ -96,6 +108,15 @@ export default function HomeScreen() {
   });
 
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+  const [userRidePhase, setUserRidePhase] = useState<UserRidePhase | null>(null);
+  const [activeRide, setActiveRide] = useState<RideRequest | null>(null);
+  const [incomingDriverRide, setIncomingDriverRide] = useState<RideRequest | null>(null);
+  const [takenDriverRideId, setTakenDriverRideId] = useState<number | null>(null);
+  const [driverRideErrorMessage, setDriverRideErrorMessage] = useState<string | null>(null);
+  const [acceptingRideId, setAcceptingRideId] = useState<number | null>(null);
+  const [startingRideId, setStartingRideId] = useState<number | null>(null);
+  const [cancellingRideId, setCancellingRideId] = useState<number | null>(null);
+  const [rideErrorMessage, setRideErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!routeSummary) {
@@ -171,6 +192,131 @@ export default function HomeScreen() {
     getRole().then(setRole);
   }, []);
 
+  useRideSocketEvent('ride:requested', (ride) => {
+    if (role !== 'USER') return;
+    setActiveRide(ride);
+    setUserRidePhase('pending');
+    setCancellingRideId(null);
+    setRideErrorMessage(null);
+  });
+
+  useRideSocketEvent('ride:accepted', (ride) => {
+    if (role === 'USER') {
+      setActiveRide(ride);
+      setUserRidePhase('accepted');
+      setCancellingRideId(null);
+      setRideErrorMessage(null);
+      return;
+    }
+
+    if (role === 'DRIVER') {
+      setActiveRide(ride);
+      setIncomingDriverRide(null);
+      setTakenDriverRideId(null);
+      setAcceptingRideId(null);
+      setCancellingRideId(null);
+      setDriverRideErrorMessage(null);
+    }
+  });
+
+  useRideSocketEvent('ride:started', (ride) => {
+    if (role === 'USER') {
+      setActiveRide(ride);
+      setUserRidePhase('started');
+      setCancellingRideId(null);
+      setRideErrorMessage(null);
+      return;
+    }
+
+    if (role === 'DRIVER') {
+      setActiveRide(ride);
+      setStartingRideId(null);
+      setCancellingRideId(null);
+      setDriverRideErrorMessage(null);
+    }
+  });
+
+  useRideSocketEvent('ride:new', (ride) => {
+    if (role !== 'DRIVER' || activeRide) return;
+    setIncomingDriverRide(ride);
+    setTakenDriverRideId(null);
+    setDriverRideErrorMessage(null);
+  });
+
+  useRideSocketEvent('ride:taken', ({ rideId }) => {
+    if (role !== 'DRIVER') return;
+
+    setAcceptingRideId((current) => (current === rideId ? null : current));
+    setIncomingDriverRide((current) => {
+      if (!current || current.id !== rideId) return current;
+      setTakenDriverRideId(rideId);
+      return current;
+    });
+  });
+
+  useRideSocketEvent('ride:error', (error) => {
+    if (role === 'USER') {
+      setRideErrorMessage(readableRideError(error));
+      if (error.event === 'ride:request') {
+        setUserRidePhase(null);
+        setActiveRide(null);
+      }
+      if (error.event === 'ride:cancel') {
+        setCancellingRideId(null);
+      }
+      return;
+    }
+
+    if (role === 'DRIVER') {
+      setDriverRideErrorMessage(readableRideError(error));
+      if (error.event === 'ride:accept') {
+        setAcceptingRideId(null);
+      }
+      if (error.event === 'ride:start') {
+        setStartingRideId(null);
+      }
+      if (error.event === 'ride:cancel') {
+        setCancellingRideId(null);
+      }
+    }
+  });
+
+  useRideSocketEvent('ride:cancelled', (ride) => {
+    if (role === 'USER') {
+      if (activeRide?.id !== ride.id && userRidePhase === null) return;
+      setActiveRide(null);
+      setUserRidePhase(null);
+      setCancellingRideId(null);
+      setRideErrorMessage(null);
+      resetRouteSelection();
+      return;
+    }
+
+    if (role === 'DRIVER') {
+      if (activeRide?.id === ride.id) {
+        setActiveRide(null);
+        setStartingRideId(null);
+        setCancellingRideId(null);
+        setDriverRideErrorMessage('Die Fahrt wurde storniert.');
+      }
+      if (incomingDriverRide?.id === ride.id) {
+        setIncomingDriverRide(null);
+        setAcceptingRideId(null);
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (!takenDriverRideId) return;
+
+    const timeoutId = setTimeout(() => {
+      setIncomingDriverRide((current) => (current?.id === takenDriverRideId ? null : current));
+      setTakenDriverRideId(null);
+    }, 1200);
+
+    return () => clearTimeout(timeoutId);
+  }, [takenDriverRideId]);
+
   useEffect(() => {
     if (role !== 'DRIVER') return;
 
@@ -218,6 +364,107 @@ export default function HomeScreen() {
     triggerCameraUpdate(destination.center);
   }
 
+  function resetRouteSelection() {
+    setSearchQuery('');
+    setSelectedDestination(null);
+    setRouteError('');
+    setEstimatedPrice(null);
+    stopNavigation();
+  }
+
+  function handleRequestRide() {
+    if (role !== 'USER') return;
+
+    if (!currentCoordinate || !selectedDestination || !routeSummary) {
+      setRideErrorMessage('Berechne zuerst eine Route, bevor du eine Fahrt anfragst.');
+      return;
+    }
+
+    if (userRidePhase === 'pending') return;
+
+    try {
+      requestRide({
+        origin: 'Aktueller Standort',
+        destination: selectedDestination.place_name,
+        startLat: currentCoordinate[1],
+        startLong: currentCoordinate[0],
+        finishLat: selectedDestination.center[1],
+        finishLong: selectedDestination.center[0],
+        distance: routeSummary.distanceMeters,
+        duration: Math.round(routeSummary.durationSeconds),
+      });
+      setUserRidePhase('pending');
+      setActiveRide(null);
+      setRideErrorMessage(null);
+    } catch {
+      setRideErrorMessage('Fahrt konnte nicht angefragt werden. Pruefe die Verbindung und versuche es erneut.');
+      setUserRidePhase(null);
+    }
+  }
+
+  function handleCloseRoute() {
+    if (hasActiveUserRide) return;
+    resetRouteSelection();
+    setRideErrorMessage(null);
+  }
+
+  function handleCancelUserRide() {
+    if (role !== 'USER' || !activeRide) {
+      setRideErrorMessage('Fahrt kann noch nicht zurueckgenommen werden. Bitte kurz warten.');
+      return;
+    }
+
+    if (activeRide.status === 'STARTED') return;
+
+    try {
+      setCancellingRideId(activeRide.id);
+      setRideErrorMessage(null);
+      cancelRide(activeRide.id);
+    } catch {
+      setCancellingRideId(null);
+      setRideErrorMessage('Fahrt konnte nicht storniert werden. Pruefe die Verbindung.');
+    }
+  }
+
+  function handleAcceptRide() {
+    if (role !== 'DRIVER' || !incomingDriverRide || takenDriverRideId === incomingDriverRide.id) return;
+
+    try {
+      setAcceptingRideId(incomingDriverRide.id);
+      setDriverRideErrorMessage(null);
+      acceptRide(incomingDriverRide.id);
+    } catch {
+      setAcceptingRideId(null);
+      setDriverRideErrorMessage('Fahrt konnte nicht angenommen werden. Pruefe die Verbindung.');
+    }
+  }
+
+  function handleStartRide() {
+    if (role !== 'DRIVER' || !activeRide || activeRide.status !== 'ACCEPTED') return;
+
+    try {
+      setStartingRideId(activeRide.id);
+      setDriverRideErrorMessage(null);
+      startRide(activeRide.id);
+    } catch {
+      setStartingRideId(null);
+      setDriverRideErrorMessage('Fahrt konnte nicht gestartet werden. Pruefe die Verbindung.');
+    }
+  }
+
+  function handleCancelDriverRide() {
+    if (role !== 'DRIVER' || !activeRide) return;
+
+    try {
+      setCancellingRideId(activeRide.id);
+      setDriverRideErrorMessage(null);
+      cancelRide(activeRide.id);
+    } catch {
+      setCancellingRideId(null);
+      setDriverRideErrorMessage('Fahrt konnte nicht beendet werden. Pruefe die Verbindung.');
+    }
+  }
+
   function centerCurrentLocation() {
     if (!currentCoordinate) {
       showTemporaryLocationStatus('Aktueller Standort ist noch nicht verfuegbar.');
@@ -243,6 +490,22 @@ export default function HomeScreen() {
     paddingRight: 0,
     paddingTop: Math.max(180, Math.round(windowHeight * 0.34)),
   };
+  const rideStatusMessage =
+    userRidePhase === 'pending'
+      ? 'Suche Fahrer...'
+      : userRidePhase === 'accepted'
+        ? 'Fahrer hat angenommen'
+        : userRidePhase === 'started'
+          ? 'Fahrt gestartet'
+          : null;
+  const hasActiveUserRide = userRidePhase !== null || activeRide !== null;
+  const showRouteInfoCard = !!routeSummary && !(role === 'DRIVER' && activeRide);
+  const userCancelRideLabel =
+    role === 'USER' && activeRide?.status === 'PENDING'
+      ? 'Anfrage zuruecknehmen'
+      : role === 'USER' && activeRide?.status === 'ACCEPTED'
+        ? 'Fahrt stornieren'
+        : null;
 
   if (!mapboxToken) {
     return (
@@ -377,16 +640,46 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {routeSummary ? (
+      {showRouteInfoCard ? (
         <RouteInfoCard
           bottomInset={insets.bottom}
+          cancelRideLabel={userCancelRideLabel}
           estimatedPrice={estimatedPrice ?? undefined}
+          isCancelRideDisabled={activeRide ? cancellingRideId === activeRide.id : true}
           isNavigating={isNavigating}
+          isRideRequestDisabled={hasActiveUserRide}
           navigationMode={navigationMode}
+          rideErrorMessage={rideErrorMessage}
+          rideStatusMessage={rideStatusMessage}
           routeSummary={routeSummary}
+          showRideRequestAction={role === 'USER'}
           onChangeNavigationMode={changeNavigationMode}
+          onCancelRide={handleCancelUserRide}
+          onCloseRoute={!hasActiveUserRide ? handleCloseRoute : undefined}
+          onRequestRide={handleRequestRide}
           onStartNavigation={startNavigation}
           onStopNavigation={() => stopNavigation({ saveHistory: true })}
+        />
+      ) : null}
+
+      {role === 'DRIVER' && activeRide ? (
+        <DriverActiveRideCard
+          bottomInset={insets.bottom}
+          errorMessage={driverRideErrorMessage}
+          isCancelling={cancellingRideId === activeRide.id}
+          isStarting={startingRideId === activeRide.id}
+          ride={activeRide}
+          onCancelRide={handleCancelDriverRide}
+          onStartRide={handleStartRide}
+        />
+      ) : null}
+
+      {role === 'DRIVER' && incomingDriverRide ? (
+        <DriverRideModal
+          isAccepting={acceptingRideId === incomingDriverRide.id}
+          isTaken={takenDriverRideId === incomingDriverRide.id}
+          ride={incomingDriverRide}
+          onAccept={handleAcceptRide}
         />
       ) : null}
     </View>
@@ -452,3 +745,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+function readableRideError(error: RideErrorPayload): string {
+  if (error.code === 'FORBIDDEN') return 'Du bist für diese Fahrtaktion nicht berechtigt.';
+  if (error.code === 'UNAUTHORIZED') return 'Bitte melde dich erneut an.';
+  if (error.code === 'VALIDATION') return 'Die Fahrtanfrage ist unvollstaendig. Berechne die Route erneut.';
+  return error.message || 'Die Fahrtaktion konnte nicht ausgefuehrt werden.';
+}
