@@ -90,6 +90,37 @@ export class RidesService {
     }
   }
 
+  async cancel(actorUserId: number, rideId: number) {
+    try {
+      const cancelledAt = new Date();
+      const result = await this.prisma.rideRequest.updateMany({
+        where: {
+          id: rideId,
+          OR: [{ userId: actorUserId }, { driverId: actorUserId }],
+          status: {
+            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
+          },
+        },
+        data: {
+          status: RideStatus.CANCELLED,
+          cancelledAt,
+        },
+      });
+
+      if (result.count === 0) {
+        throw new ConflictException(
+          'Ride cannot be cancelled by this user or is no longer active',
+        );
+      }
+
+      return await this.prisma.rideRequest.findUniqueOrThrow({
+        where: { id: rideId },
+      });
+    } catch (error) {
+      throwIfDatabaseError(error);
+    }
+  }
+
   async findActiveForUser(userId: number) {
     try {
       return await this.prisma.rideRequest.findFirst({

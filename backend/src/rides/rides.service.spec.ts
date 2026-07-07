@@ -149,6 +149,43 @@ describe('RidesService', () => {
     });
   });
 
+  describe('cancel', () => {
+    it('cancels an active ride for the requesting user or assigned driver', async () => {
+      const cancelled = {
+        id: 11,
+        userId: 7,
+        driverId: 22,
+        status: RideStatus.CANCELLED,
+      };
+      prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.rideRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
+
+      await expect(service.cancel(7, 11)).resolves.toEqual(cancelled);
+      expect(prismaMock.rideRequest.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 11,
+          OR: [{ userId: 7 }, { driverId: 7 }],
+          status: {
+            in: [RideStatus.PENDING, RideStatus.ACCEPTED, RideStatus.STARTED],
+          },
+        },
+        data: {
+          status: RideStatus.CANCELLED,
+          cancelledAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('rejects cancel when the actor is not part of the ride', async () => {
+      prismaMock.rideRequest.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancel(99, 11)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prismaMock.rideRequest.findUniqueOrThrow).not.toHaveBeenCalled();
+    });
+  });
+
   describe('findActiveForUser', () => {
     it('returns the newest active ride for a user or driver', async () => {
       const ride = { id: 3, status: RideStatus.STARTED };

@@ -1,10 +1,22 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RidesGateway } from './rides.gateway';
 import { RidesService } from './rides.service';
 
 @Module({
-  imports: [PrismaModule],
-  providers: [RidesService],
+  imports: [
+    PrismaModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET'),
+      }),
+    }),
+  ],
+  providers: [RidesService, RidesGateway],
   exports: [RidesService],
 })
 export class RidesModule {}
