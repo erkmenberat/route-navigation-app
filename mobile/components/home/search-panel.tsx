@@ -8,6 +8,7 @@ interface SearchPanelProps {
   searchError: string;
   hasNoResults: boolean;
   isRouteLoading: boolean;
+  isSelectingDestinationFromCoordinate: boolean;
   routeError: string;
   topInset: number;
   onChangeText: (text: string) => void;
@@ -21,6 +22,7 @@ export function SearchPanel({
   searchError,
   hasNoResults,
   isRouteLoading,
+  isSelectingDestinationFromCoordinate,
   routeError,
   topInset,
   onChangeText,
@@ -42,6 +44,13 @@ export function SearchPanel({
         <View style={styles.stateRow}>
           <ActivityIndicator color="#f9fafb" />
           <Text style={styles.stateText}>Suche laeuft...</Text>
+        </View>
+      ) : null}
+
+      {isSelectingDestinationFromCoordinate ? (
+        <View style={styles.stateRow}>
+          <ActivityIndicator color="#f9fafb" />
+          <Text style={styles.stateText}>Adresse wird geladen...</Text>
         </View>
       ) : null}
 

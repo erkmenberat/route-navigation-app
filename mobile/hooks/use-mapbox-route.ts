@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type {
   Coordinate,
@@ -21,6 +21,8 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [isSelectingDestinationFromCoordinate, setIsSelectingDestinationFromCoordinate] = useState(false);
+  const coordinateSelectionRequestIdRef = useRef(0);
 
   // Debounced geocoding search
   useEffect(() => {
@@ -187,6 +189,63 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
     setRouteSummary(null);
   }, []);
 
+  const selectDestinationFromCoordinate = useCallback(
+    async (coordinate: Coordinate) => {
+      const [longitude, latitude] = coordinate;
+      const requestId = coordinateSelectionRequestIdRef.current + 1;
+      coordinateSelectionRequestIdRef.current = requestId;
+      setIsSelectingDestinationFromCoordinate(true);
+
+      let destination: GeocodingFeature = {
+        id: `map-tap-${longitude}-${latitude}`,
+        place_name: 'Ausgewaehlter Punkt',
+        center: coordinate,
+      };
+
+      if (mapboxToken) {
+        try {
+          const params = new URLSearchParams({
+            access_token: mapboxToken,
+            language: 'de',
+            latitude: String(latitude),
+            longitude: String(longitude),
+          });
+          const response = await fetch(
+            `https://api.mapbox.com/search/geocode/v6/reverse?${params.toString()}`,
+          );
+
+          if (!response.ok) {
+            throw new Error(`Mapbox reverse geocoding failed with status ${response.status}`);
+          }
+
+          const data = (await response.json()) as GeocodingResponse;
+          const feature = data.features?.[0];
+          if (feature) {
+            destination = {
+              id: feature.id || destination.id,
+              place_name:
+                feature.properties.full_address ??
+                feature.properties.name ??
+                destination.place_name,
+              center: coordinate,
+            };
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      if (coordinateSelectionRequestIdRef.current !== requestId) {
+        return null;
+      }
+
+      selectDestination(destination);
+      setIsSelectingDestinationFromCoordinate(false);
+      return destination;
+    },
+    [selectDestination],
+  );
+
   const hasNoResults =
     !isSearching &&
     lastSearchedQuery.length >= 3 &&
@@ -209,5 +268,7 @@ export function useMapboxRoute(currentCoordinateRef: MutableRefObject<Coordinate
     routeError,
     setRouteError,
     selectDestination,
+    selectDestinationFromCoordinate,
+    isSelectingDestinationFromCoordinate,
   };
 }

@@ -9,6 +9,7 @@ import Mapbox, {
 } from '@rnmapbox/maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   Image,
   Platform,
@@ -41,6 +42,7 @@ const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const fallbackCoordinate: Coordinate = [-43.2268, -22.9358];
 const taxiIcon = require('@/assets/images/taxi.png');
 type UserRidePhase = 'pending' | 'accepted' | 'started';
+type MapPressFeature = Parameters<NonNullable<ComponentProps<typeof MapView>['onPress']>>[0];
 
 if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
@@ -92,6 +94,8 @@ export default function HomeScreen() {
     routeError,
     setRouteError,
     selectDestination,
+    selectDestinationFromCoordinate,
+    isSelectingDestinationFromCoordinate,
   } = useMapboxRoute(currentCoordinateRef);
 
   const {
@@ -425,6 +429,22 @@ export default function HomeScreen() {
     triggerCameraUpdate(destination.center);
   }
 
+  async function handleMapPress(feature: MapPressFeature) {
+    if (role === 'USER' && hasActiveUserRide) return;
+
+    const coordinates = feature.geometry?.coordinates;
+    const longitude = coordinates?.[0];
+    const latitude = coordinates?.[1];
+    if (typeof longitude !== 'number' || typeof latitude !== 'number') return;
+
+    stopNavigation();
+    setRideErrorMessage(null);
+    const destination = await selectDestinationFromCoordinate([longitude, latitude]);
+    if (destination) {
+      triggerCameraUpdate(destination.center);
+    }
+  }
+
   function resetRouteSelection() {
     setSearchQuery('');
     setSelectedDestination(null);
@@ -588,6 +608,7 @@ export default function HomeScreen() {
         scaleBarEnabled={false}
         style={styles.map}
         styleURL="mapbox://styles/mapbox/standard"
+        onPress={handleMapPress}
       >
         <Camera
           animationDuration={900}
@@ -677,6 +698,7 @@ export default function HomeScreen() {
       <SearchPanel
         hasNoResults={hasNoResults}
         isRouteLoading={isRouteLoading}
+        isSelectingDestinationFromCoordinate={isSelectingDestinationFromCoordinate}
         isSearching={isSearching}
         routeError={routeError}
         searchError={searchError}
