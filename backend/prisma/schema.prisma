@@ -18,6 +18,14 @@ enum Role {
   DRIVER
 }
 
+enum RideStatus {
+  PENDING
+  ACCEPTED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id            Int            @id @default(autoincrement())
   createdAt     DateTime       @default(now())
@@ -34,6 +42,8 @@ model User {
   chatsAsUser2  Chat[]         @relation("ChatUser2")
   sentMessages  Message[]
   taxi          Taxi?
+  ridesAsUser   RideRequest[]  @relation("RideRequestUser")
+  ridesAsDriver RideRequest[]  @relation("RideRequestDriver")
 }
 
 model RefreshToken {
@@ -67,6 +77,43 @@ model Route {
   price       Float
 
   createdAt   DateTime @default(now())
+}
+
+model RideRequest {
+  id          Int        @id @default(autoincrement())
+
+  userId      Int
+  user        User       @relation("RideRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  driverId    Int?
+  driver      User?      @relation("RideRequestDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  status      RideStatus @default(PENDING)
+
+  origin      String
+  destination String
+
+  startLat    Float
+  startLong   Float
+  finishLat   Float
+  finishLong  Float
+
+  distance    Float
+  duration    Int
+  price       Float
+
+  acceptedAt  DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([driverId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Chat {
