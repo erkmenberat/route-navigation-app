@@ -1,4 +1,4 @@
-# Route Navigation App
+# Navigation App / Taxi App
 
 Taxi- und Navigations-App mit Expo React Native, NestJS, PostgreSQL, Prisma,
 Socket.IO und Mapbox. Die App verbindet klassische Routenplanung mit
