@@ -12,7 +12,9 @@
     "backend:test": "pnpm --filter backend test",
     "prisma:generate": "pnpm --filter backend prisma:generate",
     "prisma:validate": "pnpm --filter backend prisma:validate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "lint-staged": {
     "backend/src/**/*.ts": "prettier --write --ignore-path backend/.prettierignore",
@@ -26,5 +28,11 @@
     "ignoredBuiltDependencies": [
       "prisma"
     ]
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~54.0.35",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }
