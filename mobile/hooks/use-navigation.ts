@@ -170,7 +170,7 @@ export function useNavigation({
       if (mapPerspectiveRef.current === 'navigation' || routeIndex % 8 === 0) {
         onCameraUpdateRef.current(nextCoordinate);
       }
-    }, 650);
+    }, 400);
   }, [
     routeCoordinates,
     navigationMode,

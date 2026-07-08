@@ -10,6 +10,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RoutesModule } from './routes/routes.module';
+import { TaxiModule } from './taxi/taxi.module';
+import { RidesModule } from './rides/rides.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { RoutesModule } from './routes/routes.module';
     RoutesModule,
     ChatModule,
     MessagesModule,
+    TaxiModule,
+    RidesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

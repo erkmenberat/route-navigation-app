@@ -1,4 +1,4 @@
-import { getAuthToken } from '@/services/auth-token';
+import { getAuthToken, refreshAccessToken } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
@@ -57,13 +57,15 @@ export default function TabsLayout() {
         }
       } else if (comingToForeground) {
         console.log('[AppState] foreground → resume socket');
-        const token = await getAuthToken();
-        if (!token) return;
         const sock = socketService.getSocket();
         if (sock) {
-          sock.auth = { token };
+          const accessToken = await refreshAccessToken();
+          if (!accessToken) return;
+          sock.auth = { token: accessToken };
           sock.connect();
         } else {
+          const token = await getAuthToken();
+          if (!token) return;
           socketService.connect(token);
         }
       }

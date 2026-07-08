@@ -1,6 +1,6 @@
 import { api } from '@/services/api';
 import { getAuthErrorMessage } from '@/services/auth-error';
-import { saveAuthToken, saveRefreshToken } from '@/services/auth-token';
+import { saveAuthToken, saveRefreshToken, saveRole } from '@/services/auth-token';
 import { socketService } from '@/services/socket';
 import { useState } from 'react';
 import {
@@ -33,6 +33,10 @@ export default function LoginScreen() {
 
       await saveAuthToken(response.data.access_token);
       await saveRefreshToken(response.data.refresh_token);
+
+      const meResponse = await api.get('/auth/me');
+      await saveRole(meResponse.data.role);
+
       socketService.connect(response.data.access_token);
       console.log("Success login websocket.");
       setStatusType('success');

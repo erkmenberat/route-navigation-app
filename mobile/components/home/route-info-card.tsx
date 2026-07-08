@@ -8,9 +8,18 @@ interface RouteInfoCardProps {
   isNavigating: boolean;
   bottomInset: number;
   estimatedPrice?: number;
+  showRideRequestAction?: boolean;
+  isRideRequestDisabled?: boolean;
+  rideStatusMessage?: string | null;
+  rideErrorMessage?: string | null;
+  cancelRideLabel?: string | null;
+  isCancelRideDisabled?: boolean;
   onChangeNavigationMode: (mode: NavigationMode) => void;
-  onStartNavigation: () => void;
-  onStopNavigation: () => void;
+  onStartNavigation?: () => void;
+  onStopNavigation?: () => void;
+  onRequestRide?: () => void;
+  onCancelRide?: () => void;
+  onCloseRoute?: () => void;
 }
 
 export function RouteInfoCard({
@@ -19,13 +28,34 @@ export function RouteInfoCard({
   isNavigating,
   bottomInset,
   estimatedPrice,
+  showRideRequestAction = false,
+  isRideRequestDisabled = false,
+  rideStatusMessage,
+  rideErrorMessage,
+  cancelRideLabel,
+  isCancelRideDisabled = false,
   onChangeNavigationMode,
   onStartNavigation,
   onStopNavigation,
+  onRequestRide,
+  onCancelRide,
+  onCloseRoute,
 }: RouteInfoCardProps) {
   return (
     <View style={[styles.container, { bottom: bottomInset + 24 }]}>
-      <Text style={styles.label}>Route</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.label}>Route</Text>
+        {onCloseRoute ? (
+          <Pressable
+            accessibilityLabel="Route schliessen"
+            hitSlop={8}
+            onPress={onCloseRoute}
+            style={styles.closeButton}
+          >
+            <Ionicons name="close" color="#f9fafb" size={18} />
+          </Pressable>
+        ) : null}
+      </View>
       <View style={styles.summaryRow}>
         <Text style={styles.summaryValue}>{routeSummary.distanceKm.toFixed(1)} km</Text>
         <Text style={styles.summarySeparator}>|</Text>
@@ -72,16 +102,56 @@ export function RouteInfoCard({
         </Pressable>
       </View>
 
-      <Pressable
-        accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
-        onPress={isNavigating ? onStopNavigation : onStartNavigation}
-        style={styles.navButton}
-      >
-        <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
-        <Text style={styles.navButtonText}>
-          {isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
-        </Text>
-      </Pressable>
+      {onStartNavigation && onStopNavigation ? (
+        <Pressable
+          accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+          onPress={isNavigating ? onStopNavigation : onStartNavigation}
+          style={styles.navButton}
+        >
+          <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
+          <Text style={styles.navButtonText}>
+            {isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {showRideRequestAction ? (
+        <Pressable
+          accessibilityLabel="Fahrt anfragen"
+          disabled={isRideRequestDisabled}
+          onPress={onRequestRide}
+          style={[styles.rideButton, isRideRequestDisabled ? styles.rideButtonDisabled : null]}
+        >
+          <Ionicons name="flag" color="#111827" size={18} />
+          <Text style={styles.rideButtonText}>Fahrt anfragen</Text>
+        </Pressable>
+      ) : null}
+
+      {rideStatusMessage ? (
+        <View style={styles.rideStatusCard}>
+          <Ionicons name="time" color="#bfdbfe" size={16} />
+          <Text style={styles.rideStatusText}>{rideStatusMessage}</Text>
+        </View>
+      ) : null}
+
+      {cancelRideLabel ? (
+        <Pressable
+          accessibilityLabel={cancelRideLabel}
+          disabled={isCancelRideDisabled}
+          onPress={onCancelRide}
+          style={[styles.cancelRideButton, isCancelRideDisabled ? styles.cancelRideButtonDisabled : null]}
+        >
+          <Ionicons name="close-circle" color="#fee2e2" size={18} />
+          <Text style={styles.cancelRideButtonText}>{cancelRideLabel}</Text>
+        </Pressable>
+      ) : null}
+
+      {rideErrorMessage ? (
+        <View style={styles.rideErrorCard}>
+          <Ionicons name="alert-circle" color="#fecaca" size={16} />
+          <Text style={styles.rideErrorText}>{rideErrorMessage}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -102,12 +172,24 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     zIndex: 2,
   },
+  headerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   label: {
     color: '#9ca3af',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 4,
     textTransform: 'uppercase',
+  },
+  closeButton: {
+    alignItems: 'center',
+    borderRadius: 15,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
   },
   summaryRow: {
     alignItems: 'center',
@@ -170,5 +252,83 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 14,
     fontWeight: '800',
+  },
+  rideButton: {
+    alignItems: 'center',
+    backgroundColor: '#38bdf8',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  rideButtonDisabled: {
+    opacity: 0.55,
+  },
+  rideButtonText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  rideStatusCard: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(37, 99, 235, 0.22)',
+    borderColor: 'rgba(191, 219, 254, 0.32)',
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  rideStatusText: {
+    color: '#dbeafe',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  cancelRideButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.24)',
+    borderColor: 'rgba(254, 202, 202, 0.38)',
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
+  cancelRideButtonText: {
+    color: '#fee2e2',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  cancelRideButtonDisabled: {
+    opacity: 0.55,
+  },
+  rideErrorCard: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.18)',
+    borderColor: 'rgba(254, 202, 202, 0.34)',
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  rideErrorText: {
+    color: '#fee2e2',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

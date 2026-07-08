@@ -9,8 +9,10 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterDriverDto } from './dto/register-driver.dto';
 import { LoginDto } from './dto/login.dto';
 import { Prisma } from '../generated/prisma/client';
+import { Role } from '../generated/prisma/enums';
 
 type AuthTokens = { access_token: string; refresh_token: string };
 
@@ -30,7 +32,37 @@ export class AuthService {
     const hash = await bcrypt.hash(newUser.password, salt);
     const user = await this.createUser(newUser, hash);
 
-    return this.generateTokens(user.id, user.name);
+    return this.generateTokens(user.id, user.name, user.role);
+  }
+
+  async registerDriver(dto: RegisterDriverDto): Promise<AuthTokens> {
+    const exists = await this.findUserByEmail(dto.email);
+    if (exists)
+      throw new ConflictException('An account with this email already exists.');
+
+    const salt = await bcrypt.genSalt();
+    const hash = await bcrypt.hash(dto.password, salt);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: dto.email,
+          password: hash,
+          name: dto.name,
+          role: Role.DRIVER,
+        },
+      });
+      await tx.taxi.create({
+        data: {
+          userId: newUser.id,
+          kennzeichen: dto.kennzeichen,
+          model: dto.model,
+        },
+      });
+      return newUser;
+    });
+
+    return this.generateTokens(user.id, user.name, user.role);
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
@@ -40,7 +72,7 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    return this.generateTokens(user.id, user.name);
+    return this.generateTokens(user.id, user.name, user.role);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokens> {
@@ -49,7 +81,7 @@ export class AuthService {
     try {
       const record = await this.prisma.refreshToken.findUnique({
         where: { tokenHash },
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, name: true, role: true } } },
       });
 
       if (!record || record.expiresAt < new Date()) {
@@ -61,9 +93,15 @@ export class AuthService {
         throw new UnauthorizedException('Refresh token is invalid or expired.');
       }
 
-      // Token rotation: old token is invalidated, a new pair is issued
-      await this.prisma.refreshToken.delete({ where: { id: record.id } });
-      return this.generateTokens(record.user.id, record.user.name);
+      // Token rotation: old token is invalidated, a new pair is issued.
+      // deleteMany (not delete) so a concurrent refresh call racing on the
+      // same token doesn't crash once this row has already been rotated out.
+      await this.prisma.refreshToken.deleteMany({ where: { id: record.id } });
+      return this.generateTokens(
+        record.user.id,
+        record.user.name,
+        record.user.role,
+      );
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       this.throwDatabaseConnectionError(error);
@@ -83,8 +121,9 @@ export class AuthService {
   private async generateTokens(
     userId: number,
     name: string,
+    role: Role,
   ): Promise<AuthTokens> {
-    const payload = { sub: userId, username: name };
+    const payload = { sub: userId, username: name, role };
     const access_token = await this.jwt.signAsync(payload);
     const refresh_token = randomBytes(40).toString('hex');
     await this.saveRefreshToken(userId, refresh_token);
