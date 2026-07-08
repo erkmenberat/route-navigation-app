@@ -15,8 +15,8 @@ interface RouteInfoCardProps {
   cancelRideLabel?: string | null;
   isCancelRideDisabled?: boolean;
   onChangeNavigationMode: (mode: NavigationMode) => void;
-  onStartNavigation: () => void;
-  onStopNavigation: () => void;
+  onStartNavigation?: () => void;
+  onStopNavigation?: () => void;
   onRequestRide?: () => void;
   onCancelRide?: () => void;
   onCloseRoute?: () => void;
@@ -102,16 +102,18 @@ export function RouteInfoCard({
         </Pressable>
       </View>
 
-      <Pressable
-        accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
-        onPress={isNavigating ? onStopNavigation : onStartNavigation}
-        style={styles.navButton}
-      >
-        <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
-        <Text style={styles.navButtonText}>
-          {isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
-        </Text>
-      </Pressable>
+      {onStartNavigation && onStopNavigation ? (
+        <Pressable
+          accessibilityLabel={isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+          onPress={isNavigating ? onStopNavigation : onStartNavigation}
+          style={styles.navButton}
+        >
+          <Ionicons name={isNavigating ? 'stop' : 'car'} color="#111827" size={18} />
+          <Text style={styles.navButtonText}>
+            {isNavigating ? 'Navigation stoppen' : 'Navigation starten'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {showRideRequestAction ? (
         <Pressable

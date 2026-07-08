@@ -487,6 +487,7 @@ export default function HomeScreen() {
     if (hasActiveUserRide) return;
     resetRouteSelection();
     setRideErrorMessage(null);
+    centerCurrentLocation();
   }
 
   function handleCancelUserRide() {
@@ -740,8 +741,8 @@ export default function HomeScreen() {
           onCancelRide={handleCancelUserRide}
           onCloseRoute={!hasActiveUserRide ? handleCloseRoute : undefined}
           onRequestRide={handleRequestRide}
-          onStartNavigation={startNavigation}
-          onStopNavigation={() => stopNavigation({ saveHistory: true })}
+          onStartNavigation={role === 'DRIVER' ? startNavigation : undefined}
+          onStopNavigation={role === 'DRIVER' ? () => stopNavigation({ saveHistory: true }) : undefined}
         />
       ) : null}
 
