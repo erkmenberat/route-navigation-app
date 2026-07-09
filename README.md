@@ -24,36 +24,14 @@ gepusht, obwohl man das in einem echten Produktionsprojekt normalerweise nicht
 so machen wuerde. In einem professionellen Umfeld wuerden Aenderungen ueber
 Branches, Pull Requests, Reviews, CI-Checks und kontrollierte Releases laufen.
 
-## Demo
-
-> Hier kommen spaeter deine App-Bilder und Videos rein.
-
-Empfohlene Struktur:
-
-```text
-docs/
-`-- media/
-    |-- app-home.png
-    |-- route-selection.png
-    |-- ride-request-user.png
-    |-- ride-request-driver.png
-    |-- chat.png
-    `-- demo.mp4
-```
-
-Beispiel fuer Screenshots:
-
-```md
-| Home / Karte | Routenplanung | Fahrer-Anfrage |
-| --- | --- | --- |
-| ![Home](docs/media/app-home.png) | ![Route](docs/media/route-selection.png) | ![Ride Request](docs/media/ride-request-user.png) |
-```
-
-Beispiel fuer ein Video:
-
-```html
-<video src="docs/media/demo.mp4" controls width="100%"></video>
-```
+## Navigation system (First Step) 
+<video src="https://github-production-user-asset-6210df.s3.amazonaws.com/172797264/619281589-5b2937e5-897d-41a7-9f99-907367ed19b9.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260709%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260709T072546Z&X-Amz-Expires=300&X-Amz-Signature=705e099f4704a9e9fc62c23eeb8f97678a81f4414ad7b10ea15958a35d9a5467&X-Amz-SignedHeaders=host&response-content-type=video%2Fmp4" controls width="600"></video>
+## Chat System 
+<video src="https://github-production-user-asset-6210df.s3.amazonaws.com/172797264/619281587-9a0eec65-0b7a-4ae2-b699-d5628dbe3a96.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260709%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260709T072543Z&X-Amz-Expires=300&X-Amz-Signature=067787dc20e5661588b69e68ad14aa38c21aa766eaa8316a23127b6e4f85a25b&X-Amz-SignedHeaders=host&response-content-type=video%2Fmp4" controls width="600"></video>
+## Taxi System
+<video src="https://github-production-user-asset-6210df.s3.amazonaws.com/172797264/619281588-e96b9a4a-e343-4332-ba3b-d522f9d75c89.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260709%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260709T072539Z&X-Amz-Expires=300&X-Amz-Signature=624ad584a20cde8b407171623b8328549d22743d637c15ce67e07bbcb3e1ce3d&X-Amz-SignedHeaders=host&response-content-type=video%2Fmp4" controls width="600"></video>
+## Taxi Live Position Tracking
+<video src="https://github-production-user-asset-6210df.s3.amazonaws.com/172797264/619281586-cc804f1f-9723-40aa-a279-508ddf3922c2.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260709%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260709T072536Z&X-Amz-Expires=300&X-Amz-Signature=2288dd969b5c9007601ae370baf27b9c40657f3fecc7f7f2fcc714df1bc8e200&X-Amz-SignedHeaders=host&response-content-type=video%2Fmp4" controls width="600"></video>
 
 ## Features
 
