@@ -1,0 +1,38 @@
+{
+  "name": "route-navigation-app",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "mobile:start": "pnpm --filter mobile start",
+    "mobile:android": "pnpm --filter mobile android",
+    "mobile:lint": "pnpm --filter mobile lint",
+    "backend:start": "pnpm --filter backend start",
+    "backend:start:dev": "pnpm --filter backend start:dev",
+    "backend:build": "pnpm --filter backend build",
+    "backend:test": "pnpm --filter backend test",
+    "prisma:generate": "pnpm --filter backend prisma:generate",
+    "prisma:validate": "pnpm --filter backend prisma:validate",
+    "prepare": "husky",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "lint-staged": {
+    "backend/src/**/*.ts": "prettier --write --ignore-path backend/.prettierignore",
+    "backend/test/**/*.ts": "prettier --write"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "prisma"
+    ]
+  },
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~54.0.35",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  }
+}

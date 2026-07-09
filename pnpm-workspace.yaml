@@ -1,0 +1,16 @@
+packages:
+  - backend
+  - mobile
+
+allowBuilds:
+  '@nestjs/core': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
+  msgpackr-extract: true
+  prisma: true
+  unrs-resolver: true
+
+nodeLinker: hoisted
+packageImportMethod: copy
+virtualStoreDir: node_modules/.pnpm

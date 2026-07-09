@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  DRIVER
+}
+
+enum RideStatus {
+  PENDING
+  ACCEPTED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  createdAt     DateTime       @default(now())
+  email         String         @unique
+  password      String
+  name          String
+  isOnline      Boolean        @default(false)
+  lastSeenAt    DateTime?
+  role          Role           @default(USER)
+
+  routes        Route[]
+  refreshTokens RefreshToken[]
+  chatsAsUser1  Chat[]         @relation("ChatUser1")
+  chatsAsUser2  Chat[]         @relation("ChatUser2")
+  sentMessages  Message[]
+  taxi          Taxi?
+  ridesAsUser   RideRequest[]  @relation("RideRequestUser")
+  ridesAsDriver RideRequest[]  @relation("RideRequestDriver")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Route {
+  id          Int      @id @default(autoincrement())
+
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+
+  origin      String?
+  destination String?
+
+  startLat    Float
+  startLong   Float
+  finishLat   Float
+  finishLong  Float
+
+  startAt     DateTime?
+  finishAt    DateTime?
+
+  distance    Float
+  duration    Int
+  price       Float
+
+  createdAt   DateTime @default(now())
+}
+
+model RideRequest {
+  id          Int        @id @default(autoincrement())
+
+  userId      Int
+  user        User       @relation("RideRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  driverId    Int?
+  driver      User?      @relation("RideRequestDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  status      RideStatus @default(PENDING)
+
+  origin      String
+  destination String
+
+  startLat    Float
+  startLong   Float
+  finishLat   Float
+  finishLong  Float
+
+  distance    Float
+  duration    Int
+  price       Float
+
+  acceptedAt  DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([driverId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Chat {
+  id            Int       @id @default(autoincrement())
+  user1Id       Int
+  user2Id       Int
+  lastMessageId Int?
+  updatedAt     DateTime  @updatedAt
+
+  user1         User      @relation("ChatUser1", fields: [user1Id], references: [id])
+  user2         User      @relation("ChatUser2", fields: [user2Id], references: [id])
+  messages      Message[]
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([updatedAt])
+}
+
+model Message {
+  id          Int       @id @default(autoincrement())
+  chatId      Int
+  senderId    Int
+  content     String
+  sentAt      DateTime  @default(now())
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User      @relation(fields: [senderId], references: [id])
+
+  @@index([chatId, sentAt])
+  @@index([senderId])
+}
+
+model Taxi {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  latitude    Float?
+  longitude   Float?
+  kennzeichen String
+  model       String
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
